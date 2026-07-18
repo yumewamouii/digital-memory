@@ -44,7 +44,10 @@ def health_check():
 def register_user(payload: UserCreate, db: Session = Depends(get_db)):
     existing = db.query(User).filter(User.email == payload.email).first()
     if existing:
-        raise HTTPException(status_code=400, detail="Email already registered")
+        raise HTTPException(
+            status_code=400,
+            detail="Пользователь с таким email уже зарегистрирован",
+        )
 
     user = User(
         email=payload.email,
@@ -60,8 +63,10 @@ def register_user(payload: UserCreate, db: Session = Depends(get_db)):
 @app.post("/api/auth/login", response_model=TokenResponse)
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == form_data.username).first()
-    if not user or not verify_password(form_data.password, user.password_hash):
-        raise HTTPException(status_code=401, detail="Invalid credentials")
+    if not user:
+        raise HTTPException(status_code=401, detail="Пользователь с таким email не найден")
+    if not verify_password(form_data.password, user.password_hash):
+        raise HTTPException(status_code=401, detail="Неверный пароль")
 
     token = create_access_token(subject=str(user.id))
     return TokenResponse(access_token=token)

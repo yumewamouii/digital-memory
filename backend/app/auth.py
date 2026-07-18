@@ -1,5 +1,9 @@
 from datetime import datetime, timedelta, timezone
 
+
+import hashlib
+
+
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
@@ -13,16 +17,20 @@ SECRET_KEY = "change_me_in_prod"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
-
-
 def get_password_hash(password: str) -> str:
-    return pwd_context.hash(password)
+    password_bytes = password.encode("utf-8")
+    prehashed = hashlib.sha256(password_bytes).digest()
+    return pwd_context.hash(prehashed)
+
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    password_bytes = plain_password.encode("utf-8")
+    prehashed = hashlib.sha256(password_bytes).digest()
+    return pwd_context.verify(prehashed, hashed_password)
 
 
 def create_access_token(subject: str, expires_delta: timedelta | None = None) -> str:
