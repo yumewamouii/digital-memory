@@ -16,7 +16,7 @@ const serviceCards = [
   },
   {
     title: "Каталог памятников и гравировка",
-    text: "Подбор решений по памятникам, гравировке и оформлению с учетом семейных пожеланий.",
+    text: "Подбор решений по памятникам, гравировке и оформлению с учётом семейных пожеланий.",
   },
   {
     title: "Оградки, плитка и благоустройство",
@@ -40,7 +40,16 @@ export default function ServicesPage() {
       <PageHero
         title="Услуги"
         subtitle="Сопровождение по цифровым страницам памяти и оформлению памятных мест."
-      />
+      >
+        <div className="hero-actions">
+          <Link to="/contacts" className="btn btn-primary">
+            Написать нам
+          </Link>
+          <Link to="/memory/create" className="btn btn-outline">
+            Создать страницу памяти
+          </Link>
+        </div>
+      </PageHero>
 
       <section className="section">
         <div className="section-inner">
@@ -48,7 +57,7 @@ export default function ServicesPage() {
             В этом разделе собраны услуги, которые чаще всего нужны семьям: от QR-кода и
             публикации страницы памяти до благоустройства места памяти и консультаций.
           </p>
-          <div className="service-grid">
+          <div className="service-grid" style={{ marginTop: "1.5rem" }}>
             {serviceCards.map((service) => (
               <article key={service.title} className="service-card">
                 <h3>{service.title}</h3>
@@ -59,20 +68,23 @@ export default function ServicesPage() {
         </div>
       </section>
 
-      <section className="section section-pillars">
-        <div className="section-inner narrow">
-          <h2>Как получить помощь</h2>
-          <ol className="steps-list">
-            {processSteps.map((step) => (
-              <li key={step}>{step}</li>
+      <section className="section section-alt">
+        <div className="section-inner">
+          <h2 className="section-title">Как получить помощь</h2>
+          <ol className="steps-numbered" style={{ marginTop: "1.25rem" }}>
+            {processSteps.map((step, index) => (
+              <li key={step}>
+                <span className="step-num">{index + 1}</span>
+                <p style={{ margin: 0 }}>{step}</p>
+              </li>
             ))}
           </ol>
-          <div className="hero-actions">
+          <div className="hero-actions" style={{ justifyContent: "flex-start" }}>
             <Link to="/contacts" className="btn btn-primary">
               Написать нам
             </Link>
-            <Link to="/memory/create" className="btn btn-outline">
-              Создать страницу памяти
+            <Link to="/pricing" className="btn btn-outline">
+              Смотреть тарифы
             </Link>
           </div>
         </div>

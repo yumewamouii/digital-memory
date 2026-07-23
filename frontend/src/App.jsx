@@ -18,14 +18,18 @@ import ServicesPage from "./pages/ServicesPage";
 import SiteMapPage from "./pages/SiteMapPage";
 
 export default function App() {
+  const rawBase = import.meta.env.BASE_URL || "/";
+  const basename = rawBase === "/" ? undefined : rawBase.replace(/\/$/, "");
+
   return (
     <AuthProvider>
-      <BrowserRouter>
+      <BrowserRouter basename={basename}>
         <Routes>
           <Route element={<Layout />}>
             <Route index element={<HomePage />} />
             <Route path="memory" element={<MemoryPage />} />
             <Route path="memory/example" element={<MemoryExamplePage />} />
+            <Route path="memory/example/:type" element={<MemoryExamplePage />} />
             <Route path="memory/museum" element={<MemoryMuseumPage />} />
             <Route path="memory/create" element={<CreateCardPage />} />
             <Route path="places" element={<PlacesPage />} />

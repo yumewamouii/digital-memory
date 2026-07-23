@@ -1,4 +1,6 @@
 import { Link } from "react-router-dom";
+import CtaRegisterBand from "../components/CtaRegisterBand";
+import { useAuth } from "../context/AuthContext";
 
 const trustPoints = [
   "Защита персональных данных",
@@ -10,7 +12,7 @@ const trustPoints = [
 const saveTypes = [
   {
     title: "Видео",
-    text: "Ролики с YouTube, Vimeo и других видеосервисов — чтобы снова услышать голос и увидеть близкого человека.",
+    text: "YouTube, Vimeo и другие видеосервисы — чтобы снова услышать голос и увидеть близкого человека.",
   },
   {
     title: "Аудиозаписи",
@@ -35,10 +37,10 @@ const saveTypes = [
 ];
 
 const shareSteps = [
-  "Зарегистрируйтесь в сервисе",
-  "Наполните страницу данными за несколько минут",
-  "Добавьте страницу в семейное древо",
-  "Поделитесь ссылкой с родными и близкими",
+  { title: "Зарегистрируйтесь в сервисе", text: "Создайте аккаунт за минуту." },
+  { title: "Наполните страницу", text: "Добавьте данные, фото и биографию." },
+  { title: "Добавьте в семейное древо", text: "Свяжите страницу с родословной." },
+  { title: "Поделитесь с родными", text: "Отправьте ссылку или QR-код." },
 ];
 
 const familyTips = [
@@ -61,17 +63,19 @@ const examples = [
     name: "Иванова Мария Петровна",
     dates: "1928 — 2019",
     excerpt:
-      "Учительница начальных классов, мать троих детей и бабушка, которую помнят за тепло, доброту и любовь к книгам. Светлая память.",
+      "Учительница начальных классов, мать троих детей и бабушка, которую помнят за тепло, доброту и любовь к книгам.",
   },
   {
     name: "Поликарпов Владимир Владимирович",
-    dates: "1960 — 2021 (61 год жизни)",
+    dates: "1960 — 2021",
     excerpt:
-      "Запомните этого светлого, работящего и неутомимого человека таким, каким знали его родные и друзья. Земля ему пухом.",
+      "Запомните этого светлого, работящего и неутомимого человека таким, каким знали его родные и друзья.",
   },
 ];
 
 export default function MemoryPage() {
+  const { openAuthModal } = useAuth();
+
   return (
     <>
       <section className="memory-hero">
@@ -81,11 +85,14 @@ export default function MemoryPage() {
             Лучший способ сохранить память о близком человеке — создать о нём страницу памяти
           </p>
           <div className="memory-hero-actions">
-            <Link to="/memory/example" className="btn btn-secondary">
-              Смотреть пример
-            </Link>
             <Link to="/memory/create" className="btn btn-primary">
               Создать страницу
+            </Link>
+            <button type="button" className="btn btn-outline" onClick={() => openAuthModal(true)}>
+              Регистрация
+            </button>
+            <Link to="/memory/example" className="btn btn-secondary">
+              Смотреть пример
             </Link>
           </div>
           <p className="memory-hero-note">
@@ -105,15 +112,14 @@ export default function MemoryPage() {
         </div>
       </section>
 
-      <section className="section section-pillars" id="memory-view">
+      <section className="section section-alt" id="memory-view">
         <div className="section-inner">
           <article className="memorial-feature">
             <p className="memorial-dates">1931 — 2022</p>
-            <h2>Горбачёв Михаил Сергеевич</h2>
+            <h2>Пример исторической страницы</h2>
             <p>
-              Историческая, масштабная личность. На странице памяти можно собрать биографию,
-              фотографии, воспоминания родных и важные даты — чтобы память о человеке жила
-              дольше одного поколения.
+              На странице памяти можно собрать биографию, фотографии, воспоминания родных и
+              важные даты — чтобы память о человеке жила дольше одного поколения.
             </p>
             <Link to="/memory/example" className="btn btn-outline btn-sm">
               Смотреть страницу
@@ -137,11 +143,11 @@ export default function MemoryPage() {
         </div>
       </section>
 
-      <section className="section section-pillars" id="memory-services">
+      <section className="section section-alt" id="memory-services">
         <div className="section-inner">
           <h2>Что можно сохранить на странице памяти?</h2>
           <p className="lead">Запечатлейте лучшие моменты из жизни близкого человека</p>
-          <div className="info-grid">
+          <div className="info-grid" style={{ marginTop: "1.25rem" }}>
             {saveTypes.map((item) => (
               <article key={item.title} className="info-card">
                 <h3>{item.title}</h3>
@@ -167,21 +173,24 @@ export default function MemoryPage() {
         </div>
       </section>
 
-      <section className="section section-pillars" id="memory-museum">
+      <section className="section section-alt" id="memory-museum">
         <div className="section-inner">
           <h2>Примеры страниц памяти</h2>
-          <div className="cards">
+          <div className="cards" style={{ marginTop: "1.25rem" }}>
             {examples.map((example) => (
               <article key={example.name} className="memorial-preview">
                 <p className="memorial-dates">{example.dates}</p>
                 <h3>{example.name}</h3>
                 <p>{example.excerpt}</p>
-                <Link to="/memory/example" className="btn btn-outline btn-sm">
+                <Link to="/memory/example" className="btn btn-outline btn-sm" style={{ marginTop: "1rem" }}>
                   Смотреть страницу
                 </Link>
               </article>
             ))}
           </div>
+          <Link to="/memory/museum" className="btn btn-outline">
+            Перейти в Музей памяти
+          </Link>
         </div>
       </section>
 
@@ -198,18 +207,22 @@ export default function MemoryPage() {
         </div>
       </section>
 
-      <section className="section section-pillars">
-        <div className="section-inner narrow">
+      <section className="section section-alt">
+        <div className="section-inner">
           <h2>Делиться воспоминаниями просто</h2>
-          <ol className="steps-list">
-            {shareSteps.map((step) => (
-              <li key={step}>{step}</li>
+          <ol className="steps-numbered" style={{ marginTop: "1.25rem" }}>
+            {shareSteps.map((step, index) => (
+              <li key={step.title}>
+                <span className="step-num">{index + 1}</span>
+                <h3 style={{ margin: "0 0 0.4rem", fontSize: "1rem" }}>{step.title}</h3>
+                <p style={{ margin: 0 }}>{step.text}</p>
+              </li>
             ))}
           </ol>
         </div>
       </section>
 
-      <section className="section memory-cta">
+      <section className="section">
         <div className="section-inner narrow">
           <div className="notice-card">
             <h2>Поделитесь памятью о близком человеке</h2>
@@ -223,6 +236,11 @@ export default function MemoryPage() {
           </div>
         </div>
       </section>
+
+      <CtaRegisterBand
+        title="Создайте страницу памяти"
+        text="Зарегистрируйтесь и сохраните историю близкого человека в МемориалГис."
+      />
     </>
   );
 }

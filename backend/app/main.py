@@ -8,6 +8,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
 from .auth import create_access_token, get_current_user, get_password_hash, verify_password
+from .config import get_settings
 from .database import Base, engine, get_db
 from .models import FamilyTree, MemorialCard, User
 from .schemas import (
@@ -22,13 +23,14 @@ from .schemas import (
     UserOut,
 )
 
+settings = get_settings()
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="Digital Memory MVP", version="0.1.0")
+app = FastAPI(title=settings.app_name, version="0.1.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.cors_origin_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -138,7 +140,7 @@ def generate_qr_for_card(
     if not card:
         raise HTTPException(status_code=404, detail="Card not found")
 
-    public_url = f"https://example.com/memorial/{card.id}"
+    public_url = f"{settings.public_frontend_url.rstrip('/')}/memory/example"
     image = qrcode.make(public_url)
     buf = io.BytesIO()
     image.save(buf, format="PNG")

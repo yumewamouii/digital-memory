@@ -8,9 +8,15 @@ __pycache__/
 .venv/
 venv/
 
+# Env files with secrets
+.env
+.env.local
+backend/.env
+
 # Node
 node_modules/
 dist/
 
 # OS
 .DS_Store
+*.db-journal

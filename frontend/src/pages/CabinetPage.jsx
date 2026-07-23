@@ -54,46 +54,75 @@ export default function CabinetPage() {
     <>
       <PageHero
         title="Личный кабинет"
-        subtitle="Ваши карточки памяти и генеалогические древа."
+        subtitle="Ваши карточки памяти и генеалогические древа в одном месте."
       />
 
       <section className="section">
         <div className="section-inner">
           {!token ? (
-            <div className="notice-card">
-              <p>Войдите, чтобы увидеть сохранённые материалы.</p>
-              <button type="button" className="btn btn-primary" onClick={() => openAuthModal(false)}>
-                Войти
-              </button>
+            <div className="notice-card form-panel" style={{ margin: "0 auto" }}>
+              <h2>Войдите в аккаунт</h2>
+              <p className="lead">
+                Чтобы увидеть сохранённые материалы, создайте страницу памяти или генеалогическое
+                древо.
+              </p>
+              <div className="hero-actions">
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={() => openAuthModal(false)}
+                >
+                  Войти
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  onClick={() => openAuthModal(true)}
+                >
+                  Регистрация
+                </button>
+              </div>
             </div>
           ) : (
             <>
               <div className="cabinet-actions">
-                <Link to="/memory/create" className="btn btn-secondary">
+                <Link to="/memory/create" className="btn btn-primary">
                   Новая карточка
                 </Link>
                 <Link to="/family-tree/create" className="btn btn-secondary">
                   Новое древо
                 </Link>
-                <button type="button" className="btn btn-ghost" onClick={loadData} disabled={isLoading}>
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  onClick={loadData}
+                  disabled={isLoading}
+                >
                   {isLoading ? "Обновляем..." : "Обновить"}
                 </button>
               </div>
 
-              <h2>Карточки памяти</h2>
+              <h2 className="cabinet-section-title">Карточки памяти</h2>
               <div className="cards">
                 {cards.length === 0 ? (
-                  <p className="empty-text">Пока нет карточек.</p>
+                  <div className="notice-card">
+                    <p className="empty-text">Пока нет карточек.</p>
+                    <Link to="/memory/create" className="btn btn-outline btn-sm">
+                      Создать первую страницу
+                    </Link>
+                  </div>
                 ) : (
                   cards.map((card) => (
                     <article key={card.id} className="card">
                       <h3>
                         {card.last_name} {card.first_name}
                       </h3>
-                      <p>{card.biography || "Биография пока не заполнена"}</p>
+                      <p style={{ marginBottom: "1rem" }}>
+                        {card.biography || "Биография пока не заполнена"}
+                      </p>
                       <button
                         type="button"
-                        className="text-link"
+                        className="btn btn-outline btn-sm"
                         onClick={() => openQr(card.id)}
                         disabled={qrLoadingId === card.id}
                       >
@@ -104,10 +133,15 @@ export default function CabinetPage() {
                 )}
               </div>
 
-              <h2>Генеалогические древа</h2>
+              <h2 className="cabinet-section-title">Генеалогические древа</h2>
               <div className="cards">
                 {trees.length === 0 ? (
-                  <p className="empty-text">Пока нет древ.</p>
+                  <div className="notice-card">
+                    <p className="empty-text">Пока нет древ.</p>
+                    <Link to="/family-tree/create" className="btn btn-outline btn-sm">
+                      Создать древо
+                    </Link>
+                  </div>
                 ) : (
                   trees.map((tree) => (
                     <article key={tree.id} className="card">

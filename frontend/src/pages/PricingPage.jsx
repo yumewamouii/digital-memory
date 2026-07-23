@@ -1,20 +1,33 @@
 import { Link } from "react-router-dom";
 import PageHero from "../components/PageHero";
+import { useAuth } from "../context/AuthContext";
 
 const plans = [
   {
     name: "Базовый",
     price: "Бесплатно",
-    features: ["1 страница памяти", "QR-код", "Личный кабинет"],
+    features: [
+      "1 страница памяти",
+      "QR-код страницы",
+      "Личный кабинет",
+      "Базовое генеалогическое древо",
+    ],
   },
   {
     name: "Семейный",
     price: "По подписке",
-    features: ["Несколько страниц", "Семейное древо", "Приоритетная поддержка"],
+    features: [
+      "Несколько страниц памяти",
+      "Расширенное семейное древо",
+      "Приоритетная поддержка",
+      "Больше возможностей для семьи",
+    ],
   },
 ];
 
 export default function PricingPage() {
+  const { openAuthModal } = useAuth();
+
   return (
     <>
       <PageHero
@@ -37,9 +50,17 @@ export default function PricingPage() {
               </article>
             ))}
           </div>
-          <Link to="/memory/create" className="btn btn-primary">
-            Начать бесплатно
-          </Link>
+          <div className="hero-actions" style={{ justifyContent: "flex-start" }}>
+            <Link to="/memory/create" className="btn btn-primary">
+              Начать бесплатно
+            </Link>
+            <button type="button" className="btn btn-outline" onClick={() => openAuthModal(true)}>
+              Регистрация
+            </button>
+            <Link to="/contacts" className="btn btn-ghost">
+              Задать вопрос
+            </Link>
+          </div>
         </div>
       </section>
     </>

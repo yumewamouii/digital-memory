@@ -1,3 +1,4 @@
+import ContactForm from "../components/ContactForm";
 import PageHero from "../components/PageHero";
 
 export default function ContactsPage() {
@@ -5,24 +6,34 @@ export default function ContactsPage() {
     <>
       <PageHero
         title="Контакты"
-        subtitle="Напишите нам, закажите звонок или свяжитесь через социальные сети."
+        subtitle="Напишите нам, если нужна помощь с созданием страницы памяти, древом или памятными местами."
       />
 
       <section className="section">
-        <div className="section-inner narrow">
-          <div className="info-grid">
-            <article className="info-card">
-              <h3>Написать нам</h3>
-              <p>support@digital-memory.example</p>
-            </article>
-            <article className="info-card">
-              <h3>Заказать звонок</h3>
-              <p>Оставьте email — мы свяжемся в рабочее время.</p>
-            </article>
-            <article className="info-card">
-              <h3>Социальные сети</h3>
-              <p>VK · Telegram · YouTube</p>
-            </article>
+        <div className="section-inner">
+          <div className="contact-layout">
+            <div>
+              <span className="section-tag">Поддержка</span>
+              <h2 className="section-title">Мы на связи</h2>
+              <p className="lead">
+                Отвечаем по будням 10:00–18:00. Если напишете в другое время — ответим, но позже.
+              </p>
+              <div className="info-grid" style={{ marginTop: "1.5rem" }}>
+                <article className="info-card">
+                  <h3>Email</h3>
+                  <p>support@memorialgis.example</p>
+                </article>
+                <article className="info-card">
+                  <h3>Социальные сети</h3>
+                  <p>VK · Telegram · YouTube</p>
+                </article>
+                <article className="info-card">
+                  <h3>Личный кабинет</h3>
+                  <p>Войдите, чтобы управлять страницами и древами.</p>
+                </article>
+              </div>
+            </div>
+            <ContactForm title="Написать нам" />
           </div>
         </div>
       </section>

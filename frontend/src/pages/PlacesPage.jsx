@@ -15,7 +15,30 @@ const examples = [
   },
   {
     title: "Мемориал или аллея памяти",
-    text: "Описание места, дата важных событий и материалы для родственников.",
+    text: "Описание места, дата важных событий и материалы для родственников и гостей города.",
+  },
+  {
+    title: "Городская экскурсия",
+    text: "Несколько точек объединяются в маршрут с заглавной страницей и QR-кодами на месте.",
+  },
+];
+
+const advantages = [
+  {
+    title: "Память без потерь",
+    text: "Данные о месте и истории семьи сохраняются в одном месте и доступны годами.",
+  },
+  {
+    title: "Быстрый доступ",
+    text: "Открытие страницы по ссылке или QR-коду прямо на месте — без приложений.",
+  },
+  {
+    title: "Удобно для родных",
+    text: "Даже если родственники живут далеко, информация всегда под рукой.",
+  },
+  {
+    title: "Точки притяжения",
+    text: "Памятные места становятся понятными для туристов, гостей и местных жителей.",
   },
 ];
 
@@ -31,8 +54,17 @@ export default function PlacesPage() {
     <>
       <PageHero
         title="Памятные места"
-        subtitle="Отдельная страница памяти места: карта, описание, история и удобный доступ для семьи."
-      />
+        subtitle="Лучший инструмент для сохранения памяти и создания точек притяжения туристов, гостей и местных жителей в вашем городе."
+      >
+        <div className="hero-actions">
+          <Link to="/contacts" className="btn btn-primary">
+            Подать заявку
+          </Link>
+          <Link to="/services" className="btn btn-outline">
+            Услуги
+          </Link>
+        </div>
+      </PageHero>
 
       <section className="section section-compact">
         <div className="section-inner">
@@ -44,15 +76,16 @@ export default function PlacesPage() {
         </div>
       </section>
 
-      <section className="section section-pillars" id="places-benefits">
+      <section className="section section-alt" id="places-benefits">
         <div className="section-inner narrow">
-          <h2>Польза</h2>
+          <span className="section-tag">Польза</span>
+          <h2 className="section-title">Зачем описывать памятное место</h2>
           <p className="lead">
-            Страница памятного места помогает семье сохранить не только точку на карте, но и
-            контекст: историю, фотографии, заметки и важные детали для будущих поколений.
+            Страница памятного места помогает сохранить не только точку на карте, но и контекст:
+            историю, фотографии, заметки и важные детали для будущих поколений.
           </p>
           <p className="lead">
-            Такой формат снижает риск потерять информацию о месте памяти и делает ее доступной
+            Такой формат снижает риск потерять информацию о месте памяти и делает её доступной
             родственникам в любой момент.
           </p>
         </div>
@@ -60,8 +93,8 @@ export default function PlacesPage() {
 
       <section className="section" id="places-examples">
         <div className="section-inner">
-          <h2>Примеры</h2>
-          <div className="feature-grid">
+          <h2 className="section-title">Примеры</h2>
+          <div className="feature-grid" style={{ marginTop: "1.25rem" }}>
             {examples.map((item) => (
               <article key={item.title} className="feature-card">
                 <h3>{item.title}</h3>
@@ -72,35 +105,32 @@ export default function PlacesPage() {
         </div>
       </section>
 
-      <section className="section section-pillars" id="places-advantages">
+      <section className="section section-alt" id="places-advantages">
         <div className="section-inner">
-          <h2>Преимущества</h2>
-          <div className="info-grid">
-            <article className="info-card">
-              <h3>Память без потерь</h3>
-              <p>Данные о месте и истории семьи сохраняются в одном месте.</p>
-            </article>
-            <article className="info-card">
-              <h3>Быстрый доступ</h3>
-              <p>Открытие страницы по ссылке или QR-коду прямо на месте.</p>
-            </article>
-            <article className="info-card">
-              <h3>Удобно для родных</h3>
-              <p>Даже если родственники живут далеко, информация всегда под рукой.</p>
-            </article>
+          <h2 className="section-title">Преимущества</h2>
+          <div className="info-grid" style={{ marginTop: "1.25rem" }}>
+            {advantages.map((item) => (
+              <article key={item.title} className="info-card">
+                <h3>{item.title}</h3>
+                <p>{item.text}</p>
+              </article>
+            ))}
           </div>
         </div>
       </section>
 
       <section className="section">
-        <div className="section-inner narrow">
-          <h2>Как добавить памятное место</h2>
-          <ol className="steps-list">
-            {steps.map((step) => (
-              <li key={step}>{step}</li>
+        <div className="section-inner">
+          <h2 className="section-title">Как добавить памятное место</h2>
+          <ol className="steps-numbered" style={{ marginTop: "1.25rem" }}>
+            {steps.map((step, index) => (
+              <li key={step}>
+                <span className="step-num">{index + 1}</span>
+                <p style={{ margin: 0 }}>{step}</p>
+              </li>
             ))}
           </ol>
-          <div className="hero-actions">
+          <div className="hero-actions" style={{ justifyContent: "flex-start" }}>
             <Link to="/memory/create" className="btn btn-primary">
               Создать страницу памяти
             </Link>
