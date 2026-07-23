@@ -35,7 +35,7 @@ jobs:
         working-directory: frontend
         env:
           VITE_BASE: /digital-memory/
-          # Задайте секрет VITE_API_URL = https://<your-api>.onrender.com/api
+          # Опционально: секрет VITE_API_URL, если позже появится API
           VITE_API_URL: ${{ secrets.VITE_API_URL }}
         run: |
           npm ci
