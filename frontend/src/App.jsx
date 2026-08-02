@@ -1,4 +1,5 @@
 import { BrowserRouter, Route, Routes } from "react-router-dom";
+import AuthCallbackPage from "./components/AuthCallbackPage";
 import Layout from "./components/Layout";
 import { AuthProvider } from "./context/AuthContext";
 import AboutPage from "./pages/AboutPage";
@@ -6,7 +7,10 @@ import CabinetPage from "./pages/CabinetPage";
 import ContactsPage from "./pages/ContactsPage";
 import CreateCardPage from "./pages/CreateCardPage";
 import CreateTreePage from "./pages/CreateTreePage";
+import EditTreePage from "./pages/EditTreePage";
 import FamilyTreePage from "./pages/FamilyTreePage";
+import ViewTreePage from "./pages/ViewTreePage";
+import TreeInvitePage from "./pages/TreeInvitePage";
 import FaqPage from "./pages/FaqPage";
 import HomePage from "./pages/HomePage";
 import MemoryExamplePage from "./pages/MemoryExamplePage";
@@ -35,9 +39,15 @@ export default function App() {
             <Route path="places" element={<PlacesPage />} />
             <Route path="family-tree" element={<FamilyTreePage />} />
             <Route path="family-tree/create" element={<CreateTreePage />} />
+            <Route path="family-tree/demo" element={<ViewTreePage mode="demo" />} />
+            <Route path="family-tree/invite/:inviteToken" element={<TreeInvitePage />} />
+            <Route path="family-tree/s/:shareSlug" element={<ViewTreePage mode="slug" />} />
+            <Route path="family-tree/:treeId/edit" element={<EditTreePage />} />
+            <Route path="family-tree/:treeId" element={<ViewTreePage mode="id" />} />
             <Route path="services" element={<ServicesPage />} />
             <Route path="about" element={<AboutPage />} />
             <Route path="cabinet" element={<CabinetPage />} />
+            <Route path="auth/callback" element={<AuthCallbackPage />} />
             <Route path="faq" element={<FaqPage />} />
             <Route path="contacts" element={<ContactsPage />} />
             <Route path="sitemap" element={<SiteMapPage />} />

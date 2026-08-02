@@ -36,7 +36,7 @@ export default function ContactForm({ title = "Написать нам", compact
         />
         <input
           type="email"
-          placeholder="Email"
+          placeholder="Почта"
           value={form.email}
           onChange={(e) => setForm({ ...form, email: e.target.value })}
         />

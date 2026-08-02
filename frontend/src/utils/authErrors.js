@@ -1,13 +1,13 @@
 const DETAIL_MESSAGES = {
-  "Email already registered": "Пользователь с таким email уже зарегистрирован",
-  "User not found": "Пользователь с таким email не найден",
+  "Email already registered": "Пользователь с такой почтой уже зарегистрирован",
+  "User not found": "Пользователь с такой почтой не найден",
   "Invalid password": "Неверный пароль",
-  "Invalid credentials": "Неверный email или пароль",
+  "Invalid credentials": "Неверная почта или пароль",
 };
 
 const FIELD_MESSAGES = {
   email: {
-    value_error: "Укажите корректный email",
+    value_error: "Укажите корректную почту",
   },
   password: {
     string_too_short: "Пароль должен содержать не менее 8 символов",
@@ -27,7 +27,7 @@ function mapValidationError(item) {
   }
 
   if (field === "email") {
-    return "Укажите корректный email";
+    return "Укажите корректную почту";
   }
   if (field === "password") {
     return "Пароль должен содержать не менее 8 символов";
@@ -59,7 +59,7 @@ export function getAuthErrorMessage(error, fallback) {
 
 export function validateRegisterForm({ email, password, full_name }) {
   if (!email.trim()) {
-    return "Укажите email";
+    return "Укажите почту";
   }
   if (!full_name.trim()) {
     return "Укажите ФИО";
@@ -78,7 +78,7 @@ export function validateRegisterForm({ email, password, full_name }) {
 
 export function validateLoginForm({ email, password }) {
   if (!email.trim()) {
-    return "Укажите email";
+    return "Укажите почту";
   }
   if (!password) {
     return "Укажите пароль";

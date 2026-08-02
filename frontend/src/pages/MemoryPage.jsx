@@ -1,155 +1,204 @@
 import { Link } from "react-router-dom";
 import CtaRegisterBand from "../components/CtaRegisterBand";
-import { useAuth } from "../context/AuthContext";
+import FaqAccordion from "../components/FaqAccordion";
+import pillarMemory from "../assets/home-pillar-memory.png";
+import biographyBot from "../assets/home-biography-bot.png";
+import keepPhoto from "../assets/memory-keep-photo.png";
+import keepAudio from "../assets/memory-keep-audio.png";
+import keepVideo from "../assets/memory-keep-video.png";
+import keepText from "../assets/memory-keep-text.png";
+import keepMap from "../assets/memory-keep-map.png";
+import keepLink from "../assets/memory-keep-link.png";
 
-const trustPoints = [
-  "Защита персональных данных",
-  "Связь со страницей в семейном древе",
-  "Долгосрочное хранение информации",
-  "Помощь в написании биографии",
+const whyReasons = [
+  {
+    title: "Фото пропадают из телефонов",
+    text: "Через годы дети смогут открыть снимки свадьбы, двора или последнего лета — даже если старый телефон давно выбросили.",
+  },
+  {
+    title: "У памятника не всё умещается",
+    text: "По QR-коду родственник из другого города узнает, кем был человек: где учился, кого любил, как звучал его голос.",
+  },
+  {
+    title: "Пока родственники рядом",
+    text: "После похорон остаётся много историй, которые никто больше не расскажет. Пока тётя или дядя помнят детали — их ещё можно записать.",
+  },
 ];
 
-const saveTypes = [
+const keepItems = [
   {
-    title: "Видео",
-    text: "YouTube, Vimeo и другие видеосервисы — чтобы снова услышать голос и увидеть близкого человека.",
-  },
-  {
-    title: "Аудиозаписи",
-    text: "Записанный голос, любимые песни или фрагменты семейных мероприятий.",
-  },
-  {
+    kind: "photo",
     title: "Фотографии",
-    text: "Загружайте столько снимков, сколько нужно: детство, семья, праздники, важные моменты жизни.",
+    image: keepPhoto,
+    imageAlt: "Старые семейные фотографии на столе",
+    text: "Свадьба, классный портрет, двор детства — в одном альбоме, а не в пяти чатах.",
   },
   {
-    title: "Текстовые описания",
-    text: "Эпитафия, краткое описание, биография и истории из жизни — всё в одном месте.",
+    kind: "audio",
+    title: "Голос и звук",
+    image: keepAudio,
+    imageAlt: "Кассета и запись голоса на телефоне",
+    text: "Запись поздравления с днём рождения или любимая песня с кассеты. Иногда хватает минуты, чтобы снова узнать голос.",
   },
   {
-    title: "Ссылки",
-    text: "Страницы родственников, социальные сети, публикации и другие важные материалы.",
+    kind: "video",
+    title: "Видео",
+    image: keepVideo,
+    imageAlt: "Семейное видео на планшете",
+    text: "Ссылки на YouTube или Vimeo — жест, улыбка, как человек говорил.",
   },
   {
-    title: "Карты",
-    text: "Отметьте место захоронения или памятное место — родственникам будет проще его найти.",
+    kind: "text",
+    title: "Текст и даты",
+    image: keepText,
+    imageAlt: "Записная книжка с датами и короткими записями",
+    text: "Эпитафия на несколько строк, даты жизни. Биографию можно дописать позже, когда найдутся слова.",
+  },
+  {
+    kind: "map",
+    title: "Место на карте",
+    image: keepMap,
+    imageAlt: "Карта с отметкой памятного места",
+    text: "Кладбище или памятное место — проще доехать без долгих объяснений по телефону.",
+  },
+  {
+    kind: "link",
+    title: "Связи с родными",
+    image: keepLink,
+    imageAlt: "Схема семейного древа на бумаге",
+    text: "Страницу можно привязать к человеку в семейном древе. Тогда внукам понятнее, кто кому кем приходится — без путаницы в фамилиях.",
   },
 ];
 
-const shareSteps = [
-  { title: "Зарегистрируйтесь в сервисе", text: "Создайте аккаунт за минуту." },
-  { title: "Наполните страницу", text: "Добавьте данные, фото и биографию." },
-  { title: "Добавьте в семейное древо", text: "Свяжите страницу с родословной." },
-  { title: "Поделитесь с родными", text: "Отправьте ссылку или QR-код." },
-];
-
-const familyTips = [
+const createSteps = [
   {
-    title: "Научите ребёнка хранить память предков",
-    text: "Покажите, как открыть страницу памяти и расскажите семейные истории вместе.",
+    title: "Укажите имя и даты",
+    text: "Хватит фамилии, имени и пары дат. Остальное можно дописать позже.",
   },
   {
-    title: "Вспомните семейные моменты",
-    text: "Соберите фотографии и воспоминания, пока они ещё свежи в памяти близких.",
+    title: "Добавьте то, что есть под рукой",
+    text: "Одно фото, короткая эпитафия, заметка от сестры — страница уже живая.",
   },
   {
-    title: "Разместите табличку с QR-кодом",
-    text: "У могилы или дома — чтобы любой мог быстро открыть страницу с телефона.",
+    title: "Решите, кому открыть",
+    text: "Оставьте ссылку в семье или разместите QR-код у памятника. Доступ задаёте вы.",
   },
 ];
 
-const examples = [
+const reviews = [
   {
-    name: "Иванова Мария Петровна",
-    dates: "1928 — 2019",
-    excerpt:
-      "Учительница начальных классов, мать троих детей и бабушка, которую помнят за тепло, доброту и любовь к книгам.",
+    quote:
+      "Сначала думала, что получится просто страница с фотографиями. А теперь внуки сами открывают её и спрашивают про бабушку.",
+    author: "Елена, Новосибирск",
   },
   {
-    name: "Поликарпов Владимир Владимирович",
-    dates: "1960 — 2021",
-    excerpt:
-      "Запомните этого светлого, работящего и неутомимого человека таким, каким знали его родные и друзья.",
+    quote:
+      "Поставили табличку с кодом у памятника. Племянник из Питера приехал и сам прочитал, кем был дядя — мы даже не успели всё рассказать.",
+    author: "Игорь, Казань",
+  },
+  {
+    quote:
+      "Писали биографию урывками, по вечерам. Через неделю вернулись к черновику — всё на месте, ничего не потерялось.",
+    author: "Марина, Воронеж",
+  },
+];
+
+const memoryFaq = [
+  {
+    q: "Кто увидит страницу?",
+    a: "Только те, кому вы передадите ссылку или QR-код. Страница не появляется в открытом поиске сама по себе.",
+  },
+  {
+    q: "Можно ли сделать страницу только для семьи?",
+    a: "Да. Ссылку можно не публиковать и держать в семейном чате. QR-код тоже ставите только там, где решите сами.",
+  },
+  {
+    q: "Где хранятся данные и что будет через годы?",
+    a: "Материалы лежат в вашем аккаунте на серверах сервиса. Пока аккаунт активен, страница доступна вам и тем, кому вы открыли доступ. Обработка данных — по 152-ФЗ.",
+  },
+  {
+    q: "Кто владелец данных?",
+    a: "Вы. Можете менять текст и фото, закрывать доступ к ссылке и удалять карточку из кабинета.",
+  },
+  {
+    q: "Что если сервис закроется?",
+    a: "Мы ориентируемся на долгое хранение семейных материалов. При существенных изменениях сервиса предупредим заранее — чтобы семья успела сохранить копии важных файлов у себя.",
+  },
+  {
+    q: "Сложно ли написать биографию?",
+    a: "Не обязательно писать сразу всё. Можно начать с пяти предложений: кем был человек, кого любил, чем занимался. Помощник подскажет структуру, если слова не находятся.",
   },
 ];
 
 export default function MemoryPage() {
-  const { openAuthModal } = useAuth();
-
   return (
     <>
       <section className="memory-hero">
         <div className="memory-hero-inner">
-          <h1>Страница памяти умерших людей</h1>
+          <h1>Страница, которую дети откроют через двадцать лет</h1>
           <p className="memory-hero-lead">
-            Лучший способ сохранить память о близком человеке — создать о нём страницу памяти
+            Не только даты на памятнике. Голос, фотографии, письма и семейные истории —
+            всё в одном месте.
           </p>
           <div className="memory-hero-actions">
             <Link to="/memory/create" className="btn btn-primary">
-              Создать страницу
+              Создать страницу памяти бесплатно
             </Link>
-            <button type="button" className="btn btn-outline" onClick={() => openAuthModal(true)}>
-              Регистрация
-            </button>
             <Link to="/memory/example" className="btn btn-secondary">
-              Смотреть пример
+              Посмотреть пример
             </Link>
           </div>
           <p className="memory-hero-note">
-            Страницы памяти помогают семьям бережно хранить историю и передавать её следующим
-            поколениям
+            Базовый формат бесплатный. Регистрация понадобится только при сохранении.
           </p>
-        </div>
-      </section>
-
-      <section className="section section-compact">
-        <div className="section-inner">
-          <ul className="trust-list">
-            {trustPoints.map((point) => (
-              <li key={point}>{point}</li>
-            ))}
-          </ul>
         </div>
       </section>
 
       <section className="section section-alt" id="memory-view">
         <div className="section-inner">
-          <article className="memorial-feature">
-            <p className="memorial-dates">1931 — 2022</p>
-            <h2>Пример исторической страницы</h2>
-            <p>
-              На странице памяти можно собрать биографию, фотографии, воспоминания родных и
-              важные даты — чтобы память о человеке жила дольше одного поколения.
-            </p>
-            <Link to="/memory/example" className="btn btn-outline btn-sm">
-              Смотреть страницу
-            </Link>
-          </article>
+          <div className="memory-spotlight">
+            <figure className="memory-spotlight-media">
+              <img
+                src={pillarMemory}
+                alt="Семейный альбом и фотографии разных лет"
+                loading="lazy"
+              />
+            </figure>
+            <div className="memory-spotlight-copy">
+              <span className="section-tag">Пример</span>
+              <p className="memorial-dates">1928 — 2019</p>
+              <h2 className="section-title">Иванова Мария Петровна</h2>
+              <p className="lead">
+                Учительница, мать троих детей. На странице — классный портрет 1954 года,
+                запись голоса с дня рождения внучки и заметка от дочери: «Мама всегда
+                читала вслух перед сном».
+              </p>
+              <blockquote className="memory-quote">
+                «Пусть откроют эту страницу, когда захотят просто услышать её снова.»
+              </blockquote>
+              <div className="hero-actions" style={{ justifyContent: "flex-start" }}>
+                <Link to="/memory/example" className="btn btn-primary">
+                  Открыть пример страницы
+                </Link>
+                <Link to="/memory/museum" className="btn btn-outline">
+                  Музей памяти
+                </Link>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
-      <section className="section" id="memory-how">
-        <div className="section-inner narrow">
-          <h2>Что такое «Страница памяти»?</h2>
-          <p className="lead">
-            Это интерактивная страница в сети, на которой вы сможете сохранить воспоминания и
-            историю близкого человека. Данные хранятся долго, а доступ к ним можно открыть через
-            QR-код.
-          </p>
-          <p className="lead">
-            Так вы сможете увидеть близкого человека, услышать его голос, почувствовать духовную
-            связь — и пронести память о нём сквозь поколения.
-          </p>
-        </div>
-      </section>
-
-      <section className="section section-alt" id="memory-services">
+      <section className="section" id="memory-why">
         <div className="section-inner">
-          <h2>Что можно сохранить на странице памяти?</h2>
-          <p className="lead">Запечатлейте лучшие моменты из жизни близкого человека</p>
-          <div className="info-grid" style={{ marginTop: "1.25rem" }}>
-            {saveTypes.map((item) => (
-              <article key={item.title} className="info-card">
+          <span className="section-tag">Зачем это нужно</span>
+          <h2 className="section-title">Почему семьи начинают страницу</h2>
+          <p className="lead">
+            Обычно не из-за «функций», а потому что что-то уже почти потерялось.
+          </p>
+          <div className="memory-why-list">
+            {whyReasons.map((item) => (
+              <article key={item.title} className="memory-why-item">
                 <h3>{item.title}</h3>
                 <p>{item.text}</p>
               </article>
@@ -158,88 +207,138 @@ export default function MemoryPage() {
         </div>
       </section>
 
-      <section className="section">
-        <div className="section-inner narrow">
-          <span className="section-tag">Биография</span>
-          <h2>Помощь в написании биографии</h2>
+      <section className="section section-tint" id="memory-services">
+        <div className="section-inner">
+          <span className="section-tag">Что хранится</span>
+          <h2 className="section-title">Что обычно кладут на страницу</h2>
           <p className="lead">
-            Если сложно подобрать слова, сервис подскажет структуру текста: краткое описание,
-            эпитафию или развёрнутую биографию. Можно начать с черновика и дополнить страницу
-            позже в личном кабинете.
+            Добавляйте то, что есть сейчас. Потом дополните, когда найдёте ещё одно письмо
+            или фото из старого альбома.
           </p>
-          <Link to="/memory/create" className="btn btn-primary">
-            Начать создание
-          </Link>
-        </div>
-      </section>
-
-      <section className="section section-alt" id="memory-museum">
-        <div className="section-inner">
-          <h2>Примеры страниц памяти</h2>
-          <div className="cards" style={{ marginTop: "1.25rem" }}>
-            {examples.map((example) => (
-              <article key={example.name} className="memorial-preview">
-                <p className="memorial-dates">{example.dates}</p>
-                <h3>{example.name}</h3>
-                <p>{example.excerpt}</p>
-                <Link to="/memory/example" className="btn btn-outline btn-sm" style={{ marginTop: "1rem" }}>
-                  Смотреть страницу
-                </Link>
-              </article>
-            ))}
-          </div>
-          <Link to="/memory/museum" className="btn btn-outline">
-            Перейти в Музей памяти
-          </Link>
-        </div>
-      </section>
-
-      <section className="section">
-        <div className="section-inner">
-          <div className="feature-grid">
-            {familyTips.map((tip) => (
-              <article key={tip.title} className="feature-card">
-                <h3>{tip.title}</h3>
-                <p>{tip.text}</p>
+          <div className="memory-keep-grid">
+            {keepItems.map((item) => (
+              <article key={item.title} className="memory-keep-card">
+                <div className="memory-keep-preview">
+                  <img src={item.image} alt={item.imageAlt} loading="lazy" />
+                </div>
+                <h3>{item.title}</h3>
+                <p>{item.text}</p>
               </article>
             ))}
           </div>
         </div>
       </section>
 
-      <section className="section section-alt">
+      <section className="section" id="memory-look">
         <div className="section-inner">
-          <h2>Делиться воспоминаниями просто</h2>
-          <ol className="steps-numbered" style={{ marginTop: "1.25rem" }}>
-            {shareSteps.map((step, index) => (
-              <li key={step.title}>
-                <span className="step-num">{index + 1}</span>
-                <h3 style={{ margin: "0 0 0.4rem", fontSize: "1rem" }}>{step.title}</h3>
-                <p style={{ margin: 0 }}>{step.text}</p>
-              </li>
+          <div className="memory-split">
+            <div>
+              <span className="section-tag">Как выглядит</span>
+              <h2 className="section-title">Как выглядит страница</h2>
+              <p className="lead">
+                Даты, портрет, эпитафия, место на карте, альбом и короткие слова родных.
+                С телефона у памятника открывается нормально — крупно и без лишних кнопок.
+              </p>
+              <ul className="memory-look-points">
+                <li>Ссылка для семьи и отдельный QR-код для таблички</li>
+                <li>Связь с человеком в семейном древе</li>
+                <li>Черновик в кабинете — правите, когда готовы</li>
+              </ul>
+              <Link to="/memory/example" className="btn btn-outline">
+                Посмотреть, как это выглядит
+              </Link>
+            </div>
+            <aside className="memory-look-aside">
+              <p className="memorial-dates">1960 — 2021</p>
+              <h3>Поликарпов Владимир Владимирович</h3>
+              <p>
+                На странице — фото с рыбалки, карта участка и три коротких воспоминания
+                от друзей. Без длинных речей — только то, что семья хочет оставить.
+              </p>
+              <Link to="/memory/example" className="text-link">
+                Смотреть эту страницу
+              </Link>
+            </aside>
+          </div>
+        </div>
+      </section>
+
+      <section className="section section-alt" id="memory-how">
+        <div className="section-inner">
+          <div className="memory-split memory-split--bio">
+            <div>
+              <span className="section-tag">Как создать</span>
+              <h2 className="section-title">Три шага — без спешки</h2>
+              <ol className="memory-steps">
+                {createSteps.map((step, index) => (
+                  <li key={step.title}>
+                    <span className="memory-steps-num">{index + 1}</span>
+                    <div>
+                      <h3>{step.title}</h3>
+                      <p>{step.text}</p>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </div>
+            <figure className="memory-bio-figure">
+              <img
+                src={biographyBot}
+                alt="Черновик биографии: можно начать с короткого сообщения"
+                loading="lazy"
+              />
+              <figcaption>
+                Если слова не находятся — начните с голосового сообщения или пяти строк.
+                Структуру подскажем, править будете сами.
+              </figcaption>
+            </figure>
+          </div>
+        </div>
+      </section>
+
+      <section className="section" id="memory-reviews">
+        <div className="section-inner">
+          <span className="section-tag">Отзывы</span>
+          <h2 className="section-title">Как об этом говорят семьи</h2>
+          <div className="memory-reviews-grid">
+            {reviews.map((item) => (
+              <figure key={item.author} className="memory-review">
+                <blockquote>«{item.quote}»</blockquote>
+                <figcaption>{item.author}</figcaption>
+              </figure>
             ))}
-          </ol>
+          </div>
+        </div>
+      </section>
+
+      <section className="section section-tint" id="memory-faq">
+        <div className="section-inner narrow">
+          <h2 className="section-title">Частые вопросы</h2>
+          <p className="lead">
+            Про доступ, владельца данных и то, что волнует до первой публикации.
+          </p>
+          <FaqAccordion items={memoryFaq} />
         </div>
       </section>
 
       <section className="section">
         <div className="section-inner narrow">
-          <div className="notice-card">
-            <h2>Поделитесь памятью о близком человеке</h2>
+          <div className="memory-final-cta">
+            <h2 className="section-title">Оставьте детям то, чего нет на памятнике</h2>
             <p className="lead">
-              Создайте страницу памяти сегодня — это займёт несколько минут, а для семьи
-              останется на долгие годы.
+              Имя, одно фото и несколько строк — уже достаточно, чтобы страница жила.
+              Остальное семья дополнит позже.
             </p>
             <Link to="/memory/create" className="btn btn-primary">
-              Создать страницу
+              Начать сохранять историю семьи
             </Link>
           </div>
         </div>
       </section>
 
       <CtaRegisterBand
-        title="Создайте страницу памяти"
-        text="Зарегистрируйтесь и сохраните историю близкого человека в МемориалГис."
+        title="Память, которая останется детям"
+        text="Зарегистрируйтесь, чтобы сохранить черновик в кабинете и вернуться к нему в любой день."
       />
     </>
   );

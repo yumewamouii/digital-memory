@@ -16,9 +16,10 @@ const footerColumns = [
     title: "Страницы памяти",
     titleLink: "/memory",
     links: [
-      { label: "Как работает?", to: "/memory#memory-how" },
-      { label: "Вид", to: "/memory/example" },
-      { label: "Услуги", to: "/services" },
+      { label: "Пример", to: "/memory#memory-view" },
+      { label: "Зачем создавать", to: "/memory#memory-why" },
+      { label: "Что хранится", to: "/memory#memory-services" },
+      { label: "Как создать", to: "/memory#memory-how" },
       { label: "Музей памяти", to: "/memory/museum" },
     ],
   },
@@ -32,12 +33,12 @@ const footerColumns = [
     ],
   },
   {
-    title: "Генеалогическое древо",
+    title: "Семейное древо",
     titleLink: "/family-tree",
     links: [
       { label: "Пример древа", to: "/family-tree#tree-example" },
       { label: "Как создать древо", to: "/family-tree/create" },
-      { label: "Подписка", to: "/pricing" },
+      { label: "Тарифы", to: "/pricing" },
     ],
   },
   {
@@ -65,17 +66,15 @@ export default function Footer() {
     <footer className="site-footer">
       <div className="footer-top">
         <div className="footer-brand-block">
-          <p className="footer-brand">МемориалГис</p>
+          <p className="footer-brand">ГисМемориал</p>
           <p className="footer-tagline">
-            Сервис по сохранению памяти о людях, семейной истории и памятных местах.
-            Следите за обновлениями и создавайте цифровое наследие для будущих поколений.
+            Память о близких, семейная история и памятные места — для следующих поколений.
           </p>
         </div>
         <div className="footer-support">
           <h3>Поддержка</h3>
           <p>
-            Свяжитесь с нами, если нужна помощь или информация. Отвечаем по будням
-            10:00–18:00.
+            Нужна помощь — напишите нам. Отвечаем по будням 10:00–18:00.
           </p>
           <Link to="/contacts" className="btn btn-light btn-sm">
             Написать нам
@@ -101,7 +100,7 @@ export default function Footer() {
       </div>
 
       <div className="footer-bottom">
-        <p>© {new Date().getFullYear()} МемориалГис. Все права защищены.</p>
+        <p>© {new Date().getFullYear()} ГисМемориал. Все права защищены.</p>
         <Link to="/sitemap">Карта сайта</Link>
       </div>
     </footer>

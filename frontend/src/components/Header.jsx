@@ -71,14 +71,14 @@ export default function Header() {
       <div className="topbar">
         <div className="topbar-inner">
           <span>
-            Платформа цифровых мемориалов и семейной истории · МемориалГис
+            Память о близких и семейная история · ГисМемориал
           </span>
         </div>
       </div>
 
       <div className="header-inner">
         <Link to="/" className="logo" onClick={closeAll}>
-          Мемориал<span>Гис</span>
+          Гис<span>Мемориал</span>
         </Link>
 
         <button
@@ -127,14 +127,17 @@ export default function Header() {
             onToggle={() => toggleDropdown("memory")}
             onNavigate={closeAll}
           >
-            <DropdownLink to="/memory#memory-how" onNavigate={closeAll}>
-              Как работает?
-            </DropdownLink>
             <DropdownLink to="/memory#memory-view" onNavigate={closeAll}>
-              Вид
+              Пример
+            </DropdownLink>
+            <DropdownLink to="/memory#memory-why" onNavigate={closeAll}>
+              Зачем создавать
             </DropdownLink>
             <DropdownLink to="/memory#memory-services" onNavigate={closeAll}>
-              Услуги
+              Что хранится
+            </DropdownLink>
+            <DropdownLink to="/memory#memory-how" onNavigate={closeAll}>
+              Как создать
             </DropdownLink>
             <DropdownLink to="/memory/museum" onNavigate={closeAll}>
               Музей памяти
@@ -161,7 +164,7 @@ export default function Header() {
 
           <NavDropdown
             to="/family-tree"
-            label="Генеалогическое древо"
+            label="Семейное древо"
             open={openDropdown === "tree"}
             onToggle={() => toggleDropdown("tree")}
             onNavigate={closeAll}
@@ -170,13 +173,13 @@ export default function Header() {
               Пример древа
             </DropdownLink>
             <DropdownLink to="/family-tree#tree-advantages" onNavigate={closeAll}>
-              Преимущества
+              Возможности
             </DropdownLink>
             <DropdownLink to="/family-tree#tree-create" onNavigate={closeAll}>
               Как создать древо
             </DropdownLink>
             <DropdownLink to="/family-tree#tree-subscription" onNavigate={closeAll}>
-              Подписка
+              Тарифы
             </DropdownLink>
             <DropdownLink to="/family-tree#tree-faq" onNavigate={closeAll}>
               Вопросы и ответы
@@ -204,32 +207,47 @@ export default function Header() {
             <>
               <NavLink
                 to="/cabinet"
-                className={({ isActive }) => `btn btn-ghost btn-sm${isActive ? " active" : ""}`}
+                className={({ isActive }) =>
+                  `btn btn-ghost btn-sm header-cabinet-link${isActive ? " active" : ""}`
+                }
                 onClick={closeAll}
               >
                 Личный кабинет
               </NavLink>
-              <button type="button" className="btn btn-ghost btn-sm" onClick={logout}>
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm header-auth-text"
+                onClick={logout}
+              >
                 Выйти
               </button>
             </>
           ) : (
-            <NavLink
-              to="/cabinet"
-              className={({ isActive }) => `btn btn-ghost btn-sm${isActive ? " active" : ""}`}
-              onClick={closeAll}
-            >
-              Личный кабинет
-            </NavLink>
+            <>
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm header-auth-text"
+                onClick={() => openAuthModal(false)}
+              >
+                Войти
+              </button>
+              <button
+                type="button"
+                className="btn btn-outline btn-sm header-auth-text"
+                onClick={() => openAuthModal(true)}
+              >
+                Регистрация
+              </button>
+              <button
+                type="button"
+                className="auth-icon"
+                onClick={() => openAuthModal(false)}
+                aria-label="Вход или регистрация"
+              >
+                <img src={userIcon} alt="" />
+              </button>
+            </>
           )}
-          <button
-            type="button"
-            className="auth-icon"
-            onClick={() => openAuthModal(false)}
-            aria-label="Вход или регистрация"
-          >
-            <img src={userIcon} alt="" />
-          </button>
         </div>
       </div>
     </header>

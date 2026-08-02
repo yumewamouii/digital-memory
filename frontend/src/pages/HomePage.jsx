@@ -2,327 +2,413 @@ import { Link } from "react-router-dom";
 import ContactForm from "../components/ContactForm";
 import CtaRegisterBand from "../components/CtaRegisterBand";
 import FaqAccordion from "../components/FaqAccordion";
-import ProjectSection from "../components/ProjectSection";
-import StatPillarCard from "../components/StatPillarCard";
 import { useAuth } from "../context/AuthContext";
 import pillarMemory from "../assets/home-pillar-memory.png";
 import pillarTree from "../assets/home-pillar-tree.png";
 import pillarPlaces from "../assets/home-pillar-places.png";
 import biographyBot from "../assets/home-biography-bot.png";
 import familyTreeBanner from "../assets/home-family-tree-banner.png";
+import keepPhoto from "../assets/memory-keep-photo.png";
+import keepAudio from "../assets/memory-keep-audio.png";
+import keepVideo from "../assets/memory-keep-video.png";
+import keepText from "../assets/memory-keep-text.png";
+import keepMap from "../assets/memory-keep-map.png";
+import keepLink from "../assets/memory-keep-link.png";
+import { rasputinExample } from "../data/memorialExamples";
+import rasputinPortrait from "../assets/rasputin-portrait.jpg";
+
+const keepItems = [
+  {
+    title: "Фотографии",
+    image: keepPhoto,
+    imageAlt: "Старые семейные фотографии на столе",
+    text: "Свадьба, двор детства, портрет с полки — в одном альбоме, а не в чатах и старых телефонах.",
+  },
+  {
+    title: "Голос и звук",
+    image: keepAudio,
+    imageAlt: "Кассета и запись голоса",
+    text: "Поздравление с днём рождения или любимая песня. Иногда хватает минуты, чтобы снова узнать голос.",
+  },
+  {
+    title: "Видео",
+    image: keepVideo,
+    imageAlt: "Семейное видео на планшете",
+    text: "Жест, улыбка, как человек говорил — ссылки на ролики рядом с биографией.",
+  },
+  {
+    title: "Текст и даты",
+    image: keepText,
+    imageAlt: "Записная книжка с датами",
+    text: "Эпитафия, даты жизни, короткие истории родных. Биографию можно дописать позже.",
+  },
+  {
+    title: "Место на карте",
+    image: keepMap,
+    imageAlt: "Карта с отметкой памятного места",
+    text: "Кладбище или памятное место — открыть навигацию проще, чем объяснять дорогу по телефону.",
+  },
+  {
+    title: "Связи с родными",
+    image: keepLink,
+    imageAlt: "Схема семейного древа",
+    text: "Страницу можно связать с человеком в семейном древе — внукам понятнее, кто кому кем приходится.",
+  },
+];
+
+const whyReasons = [
+  {
+    title: "Фото пропадают из телефонов",
+    text: "Через годы дети смогут открыть снимки, даже если старый телефон давно выбросили.",
+  },
+  {
+    title: "У памятника не всё умещается",
+    text: "По QR-коду родственник из другого города узнает, кем был человек: где учился, кого любил, как звучал голос.",
+  },
+  {
+    title: "Пока родственники рядом",
+    text: "После похорон остаётся много историй, которые никто больше не расскажет. Пока тётя или дядя помнят детали — их ещё можно записать.",
+  },
+];
+
+const createSteps = [
+  {
+    title: "Укажите имя и даты",
+    text: "Хватит фамилии, имени и пары дат. Остальное можно дописать позже.",
+  },
+  {
+    title: "Добавьте то, что есть под рукой",
+    text: "Одно фото, короткая эпитафия, заметка от сестры — страница уже живая.",
+  },
+  {
+    title: "Решите, кому открыть",
+    text: "Оставьте ссылку в семье или разместите QR-код у памятника. Доступ задаёте вы.",
+  },
+];
+
+const trustPoints = [
+  {
+    title: "Кто владелец страницы",
+    text: "Вы. Меняете текст и фото, закрываете доступ и удаляете карточку из кабинета.",
+  },
+  {
+    title: "Кто увидит страницу",
+    text: "Только те, кому передадите ссылку или QR-код. В открытый поиск страница сама не попадает.",
+  },
+  {
+    title: "Приватность для семьи",
+    text: "Ссылку можно держать в семейном чате. QR-код ставите только там, где решите сами.",
+  },
+  {
+    title: "Данные и закон",
+    text: "Хранение на серверах сервиса, обработка по 152-ФЗ. Материалы лежат в вашем аккаунте.",
+  },
+  {
+    title: "Если сервис изменится",
+    text: "Ориентируемся на долгое хранение. О существенных изменениях предупредим заранее — чтобы семья успела сохранить копии.",
+  },
+  {
+    title: "Передача родственникам",
+    text: "Доступ можно открыть близким по ссылке. Вопросы о наследовании кабинета — через поддержку.",
+  },
+];
 
 const homeFaq = [
   {
-    q: "Что такое «МемориалГис»?",
-    a: "Это сервис для сохранения памяти о людях: страницы памяти, генеалогические древа и описания памятных мест с QR-кодами.",
+    q: "Сколько это стоит? Есть ли бесплатный тариф?",
+    a: "Да. Базовый тариф бесплатный: одна страница памяти, QR-код и базовое семейное древо. Расширенные возможности — по подписке «Семейный».",
   },
   {
-    q: "Почему важно создавать страницы памяти о своих предках?",
-    a: "Цифровая страница помогает семье сохранить биографию, фото и голос близкого человека и передать эту память следующим поколениям.",
+    q: "Кто хранит данные и кто владелец страницы?",
+    a: "Материалы хранятся в вашем аккаунте на серверах сервиса. Владелец страницы — вы: можете править, закрывать доступ и удалять карточку.",
   },
   {
-    q: "Где хранится вся информация?",
-    a: "Данные хранятся на серверах платформы в личном кабинете пользователя. Хранение персональных данных осуществляется в соответствии с 152-ФЗ.",
+    q: "Кто увидит страницу? Можно ли сделать приватной?",
+    a: "Страницу видят только те, кому вы передадите ссылку или QR-код. Можно не публиковать ссылку и держать её только в семье.",
   },
   {
-    q: "Что даёт подписка на генеалогическое древо?",
-    a: "Расширенный тариф открывает больше возможностей для семейной работы: дополнительные древа, карточки и приоритетную поддержку.",
+    q: "Что если сервис закроется или аккаунт удалят?",
+    a: "Мы ориентируемся на долгое хранение семейных материалов. О существенных изменениях предупредим заранее. Если аккаунт удалить — данные страницы удаляются вместе с ним; заранее сохраните важные файлы у себя и обсудите с семьёй, кому передать доступ.",
   },
   {
-    q: "Можно ли загрузить древо файлом в формате GEDCOM?",
-    a: "В текущей версии древо создаётся онлайн в личном кабинете. Импорт GEDCOM планируется в следующих обновлениях.",
+    q: "Можно ли скачать архив или экспортировать данные?",
+    a: "Фото и файлы, которые вы загрузили, остаются вашими — их можно сохранить локально. Экспорт древа в .ged уже доступен при работе с родословной; расширенный архив страницы памяти развивается вместе с сервисом.",
+  },
+  {
+    q: "Кто оплачивает хранение через 20–30 лет?",
+    a: "Базовый формат рассчитан на долгую жизнь страницы в рамках сервиса. Платные тарифы помогают развивать платформу. Если модель изменится — сообщим заранее и дадим время сохранить материалы.",
+  },
+  {
+    q: "Можно ли передать страницу родственникам?",
+    a: "Да: откройте доступ по ссылке или QR-коду. Чтобы другой человек вёл страницу из своего кабинета — напишите в поддержку, поможем с передачей.",
   },
 ];
 
-const people = [
-  {
-    name: "Поликарпов Владимир Владимирович",
-    dates: "1960 — 2021",
-    text: "Светлый, работящий и неутомимый человек — пример того, как страница памяти сохраняет живой образ для семьи.",
-  },
-  {
-    name: "Иванова Мария Петровна",
-    dates: "1928 — 2019",
-    text: "Учительница, мать и бабушка — на странице собраны даты, фотографии и короткие истории родных.",
-  },
-];
-
-const museumPlaceholders = [
-  { id: 1, initials: "ПВ", label: "Поликарпов В. В.", dates: "1960 — 2021" },
-  { id: 2, initials: "ИМ", label: "Иванова М. П.", dates: "1928 — 2019" },
-  { id: 3, initials: "СК", label: "Смирнов К. А.", dates: "1945 — 2015" },
-  { id: 4, initials: "АН", label: "Алексеева Н. И.", dates: "1932 — 2008" },
-  { id: 5, initials: "ОР", label: "Орлов Р. С.", dates: "1958 — 2020" },
-  { id: 6, initials: "ВЛ", label: "Волкова Л. Д.", dates: "1940 — 2017" },
-];
-
-const tours = [
-  {
-    title: "Цифровой маршрут «Аллея памяти»",
-    text: "Самостоятельная прогулка по мемориальным точкам города: у каждой точки — QR-код со страницей, фотографиями и историей места.",
-    quote:
-      "Такой формат помогает жителям и гостям города узнать историю памятных мест в удобном цифровом виде.",
-    author: "Куратор городского проекта",
-    role: "Культурная программа",
-  },
-  {
-    title: "Программа «Семейный маршрут»",
-    text: "Объединяет семейные захоронения и памятные места в один маршрут с описанием и заглавной страницей.",
-    quote:
-      "Важно беречь память о людях и местах, связанных с историей нашей семьи и родного края.",
-    author: "Участник программы",
-    role: "Семейный архив",
-  },
-];
+const familyQuote = {
+  text: "Оставили QR у памятника. Племянник приехал из другого города и сам прочитал, кем был дядя — мы даже не успели всё рассказать.",
+  author: "Игорь, Казань",
+};
 
 export default function HomePage() {
   const { openAuthModal } = useAuth();
 
   return (
     <>
-      <section className="home-hero-band" id="home-top">
-        <div className="home-hero-title">
-          <h1>МемориалГис: сервис по сохранению памяти о людях</h1>
-          <p>
-            Страницы памяти, генеалогические древа и памятные места — в одном спокойном
-            цифровом пространстве для семьи и близких.
-          </p>
+      <section className="home-landing-hero" id="home-top">
+        <div className="home-landing-hero-visual" aria-hidden="true">
+          <img src={pillarMemory} alt="" />
         </div>
-
-        <div className="stat-pillar-grid">
-          <StatPillarCard
-            id="home-memory"
-            image={pillarMemory}
-            imageAlt="Семейный альбом и воспоминания"
-            value="0"
-            unit="Страниц уже создано"
-            label="Страницы памяти"
-            title="Сохраните воспоминания и историю близкого человека"
-            text="Интерактивная страница в сети, на которой можно собрать биографию, фото, видео и место памяти — с доступом через QR-код."
-            primary={{ label: "Создать страницу", to: "/memory/create" }}
-            secondary={{ label: "Регистрация", onClick: () => openAuthModal(true) }}
-          />
-          <StatPillarCard
-            id="home-tree"
-            image={pillarTree}
-            imageAlt="Генеалогическое древо семьи"
-            value="0"
-            unit="Персон создали пользователи в древе"
-            label="Генеалогическое древо"
-            title="Соберите полную картину вашей родословной"
-            text="Бесплатно постройте генеалогическое древо семьи онлайн и свяжите его со страницами памяти родственников."
-            primary={{ label: "Создать древо бесплатно", to: "/family-tree/create" }}
-            secondary={{ label: "Регистрация", onClick: () => openAuthModal(true) }}
-          />
-          <StatPillarCard
-            id="home-places"
-            image={pillarPlaces}
-            imageAlt="Памятное место в городе"
-            value="0"
-            unit="Памятных мест описаны с QR-кодом"
-            label="Памятные места"
-            title="Создавайте точки притяжения памяти в вашем городе"
-            text="Лучший инструмент для сохранения памяти о местах: описание, история, карта и QR-код для жителей и гостей."
-            primary={{ label: "Смотреть места", to: "/places" }}
-            secondary={{ label: "Подать заявку", to: "/contacts" }}
-          />
+        <div className="home-landing-hero-shade" aria-hidden="true" />
+        <div className="home-landing-hero-inner">
+          <p className="home-landing-brand">ГисМемориал</p>
+          <h1>Оставьте будущим поколениям больше, чем имя на памятнике</h1>
+          <p className="home-landing-lead">
+            Страница памяти с фото, голосом и историей близкого — и QR-код, который
+            открывает её у памятника или в семейном чате.
+          </p>
+          <div className="home-landing-actions">
+            <Link to="/memory/create" className="btn btn-primary">
+              Создать страницу памяти
+            </Link>
+            <Link to="/memory/example/rasputin" className="btn btn-secondary">
+              Посмотреть пример
+            </Link>
+          </div>
+          <p className="home-landing-note">Базовый формат бесплатный. Регистрация — только при сохранении.</p>
         </div>
       </section>
 
-      <section className="section">
+      <section className="home-proof-band" aria-label="О сервисе кратко">
         <div className="section-inner">
-          <div className="mission-band">
-            <p>
-              Наш сервис помогает сохранить родовую историю для будущих поколений, формируя
-              уважительное отношение к своей семье и укрепляя ценность сохранения памяти. Мы
-              также способствуем сохранению исторического наследия, фиксируя информацию о
-              памятных местах и значимых событиях прошлого.
-            </p>
-            <p className="mission-legal">
-              Хранение персональных данных осуществляется в соответствии с Федеральным законом
-              «О персональных данных» от 27.07.2006 N 152-ФЗ.
-            </p>
+          <ul className="home-proof-list">
+            <li>
+              <strong>Бесплатный старт</strong>
+              <span>страница памяти и QR-код</span>
+            </li>
+            <li>
+              <strong>Для семьи</strong>
+              <span>доступ только по вашей ссылке</span>
+            </li>
+            <li>
+              <strong>152-ФЗ</strong>
+              <span>хранение персональных данных</span>
+            </li>
+            <li>
+              <strong>На годы вперёд</strong>
+              <span>история, которую откроют дети</span>
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <section className="section" id="home-example">
+        <div className="section-inner">
+          <div className="memory-spotlight">
+            <figure className="home-example-card" aria-label="Превью страницы памяти">
+              <div className="home-example-portrait home-example-portrait--photo">
+                <img
+                  src={rasputinExample.photo || rasputinPortrait}
+                  alt={rasputinExample.photoAlt || "Валентин Григорьевич Распутин"}
+                />
+              </div>
+              <figcaption>
+                <strong>
+                  {rasputinExample.lastName}
+                  <br />
+                  {rasputinExample.firstName} {rasputinExample.middleName}
+                </strong>
+                <span>{rasputinExample.dates}</span>
+                <em>Знаменский монастырь · Иркутск</em>
+              </figcaption>
+            </figure>
+            <div className="memory-spotlight-copy">
+              <span className="section-tag">Живой пример</span>
+              <p className="memorial-dates">{rasputinExample.dates}</p>
+              <h2 className="section-title">{rasputinExample.fullName}</h2>
+              <p className="lead">{rasputinExample.homeSpotlight.summary}</p>
+              <blockquote className="memory-quote">
+                «{rasputinExample.homeSpotlight.quote}»
+              </blockquote>
+              <div className="hero-actions" style={{ justifyContent: "flex-start" }}>
+                <Link to="/memory/example/rasputin" className="btn btn-primary">
+                  Открыть страницу Распутина
+                </Link>
+                <Link to="/memory/museum" className="btn btn-outline">
+                  Музей памяти
+                </Link>
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
-      <ProjectSection
-        id="home-museum"
-        tag="01 · Проекты"
-        title="Музей памяти"
-        text="Читайте страницы с интересными историями и создавайте страницы памяти для своих близких. Это современный способ сохранить о них воспоминания."
-        actions={[
-          { label: "Перейти в Музей памяти", to: "/memory/museum" },
-          { label: "Пример страницы", to: "/memory/example", variant: "btn-outline" },
-        ]}
-        asideTitle="Открытый архив историй"
-        asideText="Публичные страницы помогают семьям делиться памятью и находить вдохновение для собственных карточек."
-        asideActions={[{ label: "На страницу проекта", to: "/memory/museum" }]}
-        alt
-      />
-
-      <section className="section section-alt" id="home-museum-gallery">
+      <section className="section section-alt" id="home-why">
         <div className="section-inner">
-          <div className="museum-gallery">
-            {museumPlaceholders.map((item) => (
-              <Link
-                key={item.id}
-                to="/memory/example"
-                className="museum-gallery-item"
-                aria-label={item.label}
-              >
-                <div className="museum-gallery-placeholder" aria-hidden="true">
-                  <span>{item.initials}</span>
-                </div>
-                <div className="museum-gallery-caption">
-                  <strong>{item.label}</strong>
-                  <span>{item.dates}</span>
-                </div>
-              </Link>
+          <span className="section-tag">Почему это важно</span>
+          <h2 className="section-title">История не должна исчезнуть вместе с телефоном</h2>
+          <p className="lead">
+            Семьи начинают страницу не из‑за «функций», а потому что что‑то уже почти потерялось.
+          </p>
+          <div className="memory-why-list">
+            {whyReasons.map((item) => (
+              <article key={item.title} className="memory-why-item">
+                <h3>{item.title}</h3>
+                <p>{item.text}</p>
+              </article>
             ))}
           </div>
+        </div>
+      </section>
 
-          <div className="biography-bot-block">
-            <div className="biography-bot-copy">
-              <span className="section-tag">Биография с помощником</span>
-              <h2 className="section-title">Помощник для написания биографии</h2>
-              <p className="lead">
-                Запишите аудио или отправьте сообщение о близком человеке — помощник поможет
-                скомпоновать информацию и подготовить текст для публикации на странице памяти.
-              </p>
-              <Link to="/memory/create" className="btn btn-primary">
-                Начать создание страницы
-              </Link>
+      <section className="section home-quote-band" id="home-quote">
+        <div className="section-inner narrow">
+          <blockquote className="home-family-quote">
+            <p>«{familyQuote.text}»</p>
+            <footer>{familyQuote.author}</footer>
+          </blockquote>
+        </div>
+      </section>
+
+      <section className="section section-tint" id="home-keep">
+        <div className="section-inner">
+          <span className="section-tag">Что можно сохранить</span>
+          <h2 className="section-title">Не интерфейс. Память.</h2>
+          <p className="lead">
+            Добавляйте то, что есть сейчас. Потом дополните, когда найдёте ещё одно письмо
+            или фото из старого альбома.
+          </p>
+          <div className="memory-keep-grid">
+            {keepItems.map((item) => (
+              <article key={item.title} className="memory-keep-card">
+                <div className="memory-keep-preview">
+                  <img src={item.image} alt={item.imageAlt} loading="lazy" />
+                </div>
+                <h3>{item.title}</h3>
+                <p>{item.text}</p>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="section" id="home-how">
+        <div className="section-inner">
+          <div className="memory-split memory-split--bio">
+            <div>
+              <span className="section-tag">Как создать</span>
+              <h2 className="section-title">Три шага — без спешки</h2>
+              <ol className="memory-steps">
+                {createSteps.map((step, index) => (
+                  <li key={step.title}>
+                    <span className="memory-steps-num">{index + 1}</span>
+                    <div>
+                      <h3>{step.title}</h3>
+                      <p>{step.text}</p>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+              <div className="hero-actions" style={{ justifyContent: "flex-start", marginTop: "1.75rem" }}>
+                <Link to="/memory/create" className="btn btn-primary">
+                  Начать бесплатно
+                </Link>
+              </div>
             </div>
-            <figure className="biography-bot-figure">
+            <figure className="memory-bio-figure">
               <img
                 src={biographyBot}
-                alt="Пример: аудио или текстовое сообщение для подготовки биографии"
+                alt="Черновик биографии: можно начать с короткого сообщения"
                 loading="lazy"
               />
+              <figcaption>
+                Если слова не находятся — начните с голосового сообщения или пяти строк.
+                Структуру подскажем, править будете сами.
+              </figcaption>
             </figure>
           </div>
         </div>
       </section>
 
-      <ProjectSection
-        id="home-places-project"
-        tag="02 · Проекты"
-        title="Памятные места"
-        text="Лучший инструмент для сохранения памяти и создания точек притяжения для туристов, гостей и местных жителей в вашем городе."
-        actions={[
-          { label: "Смотреть места", to: "/places" },
-          { label: "Услуги", to: "/services", variant: "btn-outline" },
-        ]}
-        asideTitle="Карта, история и QR-код"
-        asideText="Опишите место, добавьте фото и сделайте доступ к информации простым — по ссылке или QR-коду на месте."
-        asideActions={[{ label: "На страницу проекта", to: "/places" }]}
-        reverse
-      />
-
-      <ProjectSection
-        id="home-tree-project"
-        tag="03 · Проекты"
-        title="Генеалогическое древо"
-        text="Древо памяти — сервис для создания генеалогического древа онлайн. Расскажите историю своей семьи и свяжите поколения."
-        actions={[
-          { label: "Смотреть пример древа", to: "/family-tree#tree-example" },
-          { label: "Создать своё древо", to: "/family-tree/create", variant: "btn-outline" },
-        ]}
-        asideTitle="Посмотрите демо-древо семьи"
-        asideText="Погрузитесь в структуру семейной истории: узлы, даты, связи и карточки родственников на одной схеме."
-        asideActions={[
-          { label: "Смотреть древо", to: "/family-tree#tree-example" },
-          { label: "Создать своё", to: "/family-tree/create", variant: "btn-primary" },
-        ]}
-        alt
-      />
-
-      <section className="section section-alt" id="home-tree-banner">
+      <section className="section section-alt" id="home-trust">
         <div className="section-inner">
-          <figure className="tree-banner-figure">
-            <img
-              src={familyTreeBanner}
-              alt="Историческая семья на фоне цифрового генеалогического древа"
-              loading="lazy"
-            />
-          </figure>
-          <div className="tree-banner-actions">
-            <Link to="/family-tree#tree-example" className="btn btn-primary">
-              Смотреть пример древа
-            </Link>
-            <Link to="/family-tree/create" className="btn btn-outline">
-              Создать своё древо
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      <section className="section section-tint" id="home-contacts">
-        <div className="section-inner">
-          <div className="contact-layout">
-            <div>
-              <span className="section-tag">Связь</span>
-              <h2 className="section-title">МемориалГис всегда на связи</h2>
-              <p className="lead">
-                Ваши вопросы, предложения и отзывы помогают нам сохранять память лучше.
-                Напишите нам — мы обязательно ответим.
-              </p>
-            </div>
-            <ContactForm title="Отправить сообщение" compact />
-          </div>
-        </div>
-      </section>
-
-      <section className="section" id="home-tours">
-        <div className="section-inner">
-          <span className="section-tag">04 · Проекты</span>
-          <h2 className="section-title">Экскурсии</h2>
+          <span className="section-tag">Доверие и безопасность</span>
+          <h2 className="section-title">Как мы защищаем ваши данные</h2>
           <p className="lead">
-            Памятные места можно объединить в единую экскурсию с маршрутом, описанием и
-            заглавной страницей.
+            Перед регистрацией обычно спрашивают про доступ, владельца и долгий срок хранения.
+            Коротко — здесь.
           </p>
-          <div className="tour-grid" style={{ marginTop: "1.5rem" }}>
-            {tours.map((tour) => (
-              <article key={tour.title} className="tour-card">
-                <h3>{tour.title}</h3>
-                <p>{tour.text}</p>
-                <blockquote>«{tour.quote}»</blockquote>
-                <p className="tour-author">
-                  {tour.author}
-                  <span className="tour-role">{tour.role}</span>
-                </p>
-                <Link to="/places" className="btn btn-outline btn-sm">
-                  Узнать больше
-                </Link>
+          <div className="home-trust-grid">
+            {trustPoints.map((item) => (
+              <article key={item.title} className="home-trust-item">
+                <h3>{item.title}</h3>
+                <p>{item.text}</p>
               </article>
             ))}
+          </div>
+          <div className="hero-actions" style={{ justifyContent: "flex-start", marginTop: "1.75rem" }}>
+            <Link to="/pricing" className="btn btn-outline">
+              Смотреть тарифы
+            </Link>
+            <Link to="/faq" className="btn btn-ghost">
+              Все вопросы и ответы
+            </Link>
           </div>
         </div>
       </section>
 
-      <section className="section section-alt">
+      <section className="section home-more-band" id="home-more">
         <div className="section-inner">
-          <h2 className="section-title">Страницы памяти</h2>
-          <p className="lead">Примеры того, как может выглядеть готовая страница о человеке.</p>
-          <div className="people-grid" style={{ marginTop: "1.25rem" }}>
-            {people.map((person) => (
-              <article key={person.name} className="people-card">
-                <p className="memorial-dates">{person.dates}</p>
-                <h3>{person.name}</h3>
-                <p style={{ marginBottom: "1rem" }}>{person.text}</p>
-                <Link to="/memory/example" className="btn btn-outline btn-sm">
-                  Смотреть страницу
-                </Link>
-              </article>
-            ))}
+          <span className="section-tag">Ещё в сервисе</span>
+          <h2 className="section-title">Рядом со страницей памяти</h2>
+          <p className="lead">Семейное древо и памятные места — если нужно связать поколения или описать место.</p>
+          <div className="home-more-grid">
+            <article className="home-more-card">
+              <figure className="home-more-media">
+                <img src={pillarTree} alt="Семейное древо" loading="lazy" />
+              </figure>
+              <div className="home-more-copy">
+                <h3>Семейное древо</h3>
+                <p>Соберите родословную и свяжите её со страницами памяти родственников.</p>
+                <div className="home-more-actions">
+                  <Link to="/family-tree#tree-example" className="btn btn-outline btn-sm">
+                    Смотреть пример древа
+                  </Link>
+                  <Link to="/family-tree/create" className="btn btn-primary btn-sm">
+                    Создать древо бесплатно
+                  </Link>
+                </div>
+              </div>
+            </article>
+            <article className="home-more-card">
+              <figure className="home-more-media">
+                <img src={pillarPlaces} alt="Памятное место в городе" loading="lazy" />
+              </figure>
+              <div className="home-more-copy">
+                <h3>Памятные места</h3>
+                <p>История места, карта и QR-код — для жителей и гостей города.</p>
+                <div className="home-more-actions">
+                  <Link to="/places" className="btn btn-outline btn-sm">
+                    Смотреть места
+                  </Link>
+                  <Link to="/contacts" className="btn btn-primary btn-sm">
+                    Подать заявку
+                  </Link>
+                </div>
+              </div>
+            </article>
           </div>
+          <figure className="home-tree-banner">
+            <img src={familyTreeBanner} alt="Семья на фоне семейного древа" loading="lazy" />
+          </figure>
         </div>
       </section>
 
-      <section className="section" id="home-faq">
+      <section className="section section-tint" id="home-faq">
         <div className="section-inner narrow">
-          <h2 className="section-title">Частые вопросы</h2>
+          <h2 className="section-title">Частые вопросы перед регистрацией</h2>
+          <p className="lead">
+            Стоимость, доступ, экспорт и то, что будет со страницей через годы.
+          </p>
           <FaqAccordion items={homeFaq} />
           <div className="faq-actions">
             <Link to="/faq" className="btn btn-outline">
@@ -335,21 +421,58 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="section section-alt" id="home-pricing">
-        <div className="section-inner narrow" style={{ textAlign: "center" }}>
-          <span className="section-tag">Цены</span>
-          <h2 className="section-title">Прозрачные тарифы</h2>
-          <p className="lead" style={{ marginLeft: "auto", marginRight: "auto" }}>
-            Можно начать бесплатно и перейти на расширенный тариф, когда понадобится больше
-            возможностей для семьи.
-          </p>
-          <Link to="/pricing" className="btn btn-outline">
-            Открыть страницу с тарифами
-          </Link>
+      <section className="section" id="home-pricing">
+        <div className="section-inner home-pricing-band">
+          <div>
+            <span className="section-tag">Цены</span>
+            <h2 className="section-title">Начать можно бесплатно</h2>
+            <p className="lead">
+              Базовый тариф — страница памяти, QR-код и базовое древо. Расширение — когда понадобится семье.
+            </p>
+          </div>
+          <div className="home-pricing-actions">
+            <Link to="/memory/create" className="btn btn-primary">
+              Сохранить историю семьи
+            </Link>
+            <Link to="/pricing" className="btn btn-outline">
+              Смотреть тарифы
+            </Link>
+          </div>
         </div>
       </section>
 
-      <CtaRegisterBand />
+      <section className="section section-alt" id="home-contacts">
+        <div className="section-inner">
+          <div className="contact-layout">
+            <div>
+              <span className="section-tag">Связь</span>
+              <h2 className="section-title">Напишите нам</h2>
+              <p className="lead">Вопросы про доступ, тарифы и передачу страницы — ответим в рабочее время.</p>
+            </div>
+            <ContactForm title="Отправить сообщение" compact />
+          </div>
+        </div>
+      </section>
+
+      <section className="section">
+        <div className="section-inner narrow">
+          <div className="memory-final-cta">
+            <h2 className="section-title">Оставьте детям то, чего нет на памятнике</h2>
+            <p className="lead">
+              Имя, одно фото и несколько строк — уже достаточно, чтобы страница жила.
+              Остальное семья дополнит позже.
+            </p>
+            <button type="button" className="btn btn-primary" onClick={() => openAuthModal(true)}>
+              Начать бесплатно
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <CtaRegisterBand
+        title="Память, которая останется детям"
+        text="Зарегистрируйтесь, чтобы сохранить черновик в кабинете и вернуться к нему в любой день."
+      />
     </>
   );
 }

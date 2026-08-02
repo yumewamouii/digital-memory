@@ -3,8 +3,8 @@ import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
 export default function CtaRegisterBand({
-  title = "Лучший способ сохранить воспоминания",
-  text = "Создайте страницу памяти вашего близкого или напишите собственную историю. Сохраните историю вашей семьи прямо сейчас.",
+  title = "Сохраните память о близких",
+  text = "Создайте страницу памяти или семейное древо — и делитесь ими с родными.",
 }) {
   const { openAuthModal, auth, setAuth, register, setMessage } = useAuth();
   const [agree, setAgree] = useState(false);
@@ -32,7 +32,7 @@ export default function CtaRegisterBand({
             <div className="form-grid">
               <input
                 type="email"
-                placeholder="Email"
+                placeholder="Почта"
                 autoComplete="email"
                 value={auth.email}
                 onChange={(e) => setAuth({ ...auth, email: e.target.value })}
@@ -68,7 +68,7 @@ export default function CtaRegisterBand({
             <p className="switch-auth">
               У вас уже есть аккаунт?{" "}
               <button type="button" className="link-btn" onClick={() => openAuthModal(false)}>
-                Войти в ЛК
+                Войти в личный кабинет
               </button>
             </p>
           </form>

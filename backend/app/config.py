@@ -6,13 +6,23 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
-    app_name: str = "Digital Memory MVP"
+    app_name: str = "ГисМемориал"
     secret_key: str = "change_me_in_prod"
     access_token_expire_minutes: int = 60 * 24
     database_url: str = "sqlite:///./digital_memory.db"
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
     public_frontend_url: str = "http://localhost:5173"
     algorithm: str = "HS256"
+
+    notification_backend: str = "log"
+
+    oauth_redirect_base: str = "http://localhost:8080"
+    google_client_id: str = ""
+    google_client_secret: str = ""
+    vk_client_id: str = ""
+    vk_client_secret: str = ""
+    mailru_client_id: str = ""
+    mailru_client_secret: str = ""
 
     @property
     def cors_origin_list(self) -> list[str]:

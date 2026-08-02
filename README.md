@@ -1,6 +1,6 @@
-# Digital Memory MVP
+# ГисМемориал
 
-MVP-платформа цифрового мемориала:
+Платформа цифрового мемориала и семейной истории:
 
 - **Frontend:** React (Vite)
 - **Backend:** FastAPI + SQLite (локально; на Pages не нужен)
@@ -50,7 +50,14 @@ copy .env.example .env
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-В `frontend` API по умолчанию: `http://localhost:8000/api` (см. `.env.example`).
+В `frontend` API по умолчанию: `http://localhost:8080/api` (см. `.env.example`).
+
+### Авторизация (локально)
+
+- Email/пароль, телефон (OTP), восстановление и смена пароля.
+- SMS и письма в режиме разработки пишутся в **лог backend** (`NOTIFICATION_BACKEND=log`). Код вида `Ваш код подтверждения…` ищите в консоли `uvicorn`.
+- OAuth (Google, VK, Mail.ru): заполните `*_CLIENT_ID` / `*_CLIENT_SECRET` и `OAUTH_REDIRECT_BASE` в `backend/.env` (см. `.env.example`). Без ключей кнопки соцсетей скрыты.
+- Redirect URI для провайдеров: `{OAUTH_REDIRECT_BASE}/api/auth/oauth/{google|vk|mailru}/callback`.
 
 ## Структура
 

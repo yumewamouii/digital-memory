@@ -1,4 +1,15 @@
-from sqlalchemy import Boolean, Column, Date, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import (
+    Boolean,
+    Column,
+    Date,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -9,14 +20,39 @@ class User(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
-    email = Column(String(255), unique=True, index=True, nullable=False)
+    email = Column(String(255), unique=True, index=True, nullable=True)
+    phone = Column(String(32), unique=True, index=True, nullable=True)
     full_name = Column(String(255), nullable=False)
-    password_hash = Column(String(255), nullable=False)
+    password_hash = Column(String(255), nullable=True)
+    google_id = Column(String(255), unique=True, index=True, nullable=True)
+    vk_id = Column(String(255), unique=True, index=True, nullable=True)
+    mailru_id = Column(String(255), unique=True, index=True, nullable=True)
+    email_verified = Column(Boolean, default=False)
+    phone_verified = Column(Boolean, default=False)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     memorial_cards = relationship("MemorialCard", back_populates="owner")
     family_trees = relationship("FamilyTree", back_populates="owner")
+    tree_collaborations = relationship("TreeCollaborator", back_populates="user")
+
+    @property
+    def has_password(self) -> bool:
+        return bool(self.password_hash)
+
+
+class AuthCode(Base):
+    __tablename__ = "auth_codes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    purpose = Column(String(64), nullable=False, index=True)
+    target = Column(String(255), nullable=False, index=True)
+    code_hash = Column(String(128), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    consumed_at = Column(DateTime(timezone=True), nullable=True)
+    attempts = Column(Integer, default=0, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
 class MemorialCard(Base):
@@ -42,10 +78,125 @@ class FamilyTree(Base):
     __tablename__ = "family_trees"
 
     id = Column(Integer, primary_key=True, index=True)
-    owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    owner_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
     title = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
-    tree_json = Column(Text, nullable=False)
+    # Legacy blob; kept for migration / backward compatibility.
+    tree_json = Column(Text, nullable=True, default="{}")
+    share_slug = Column(String(64), unique=True, index=True, nullable=True)
+    visibility = Column(String(32), nullable=False, default="private")  # private|link|public
+    guest_token = Column(String(64), unique=True, index=True, nullable=True)
+    is_demo_template = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     owner = relationship("User", back_populates="family_trees")
+    persons = relationship("TreePerson", back_populates="tree", cascade="all, delete-orphan")
+    families = relationship("TreeFamily", back_populates="tree", cascade="all, delete-orphan")
+    collaborators = relationship(
+        "TreeCollaborator", back_populates="tree", cascade="all, delete-orphan"
+    )
+
+
+class TreePerson(Base):
+    __tablename__ = "tree_persons"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tree_id = Column(Integer, ForeignKey("family_trees.id"), nullable=False, index=True)
+    first_name = Column(String(120), nullable=True, default="")
+    last_name = Column(String(120), nullable=True, default="")
+    middle_name = Column(String(120), nullable=True, default="")
+    gender = Column(String(16), nullable=True, default="")
+    birth_date = Column(Date, nullable=True)
+    death_date = Column(Date, nullable=True)
+    birth_place = Column(String(255), nullable=True)
+    death_place = Column(String(255), nullable=True)
+    photo_path = Column(String(500), nullable=True)
+    note = Column(Text, nullable=True)
+    is_deceased = Column(Boolean, default=False, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    tree = relationship("FamilyTree", back_populates="persons")
+    alt_names = relationship(
+        "TreePersonName", back_populates="person", cascade="all, delete-orphan"
+    )
+    layout = relationship(
+        "TreePersonLayout",
+        back_populates="person",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
+
+
+class TreePersonName(Base):
+    __tablename__ = "tree_person_names"
+
+    id = Column(Integer, primary_key=True, index=True)
+    person_id = Column(Integer, ForeignKey("tree_persons.id"), nullable=False, index=True)
+    name_type = Column(String(32), nullable=False, default="aka")  # birth|married|aka
+    first_name = Column(String(120), nullable=True, default="")
+    last_name = Column(String(120), nullable=True, default="")
+    middle_name = Column(String(120), nullable=True, default="")
+
+    person = relationship("TreePerson", back_populates="alt_names")
+
+
+class TreeFamily(Base):
+    __tablename__ = "tree_families"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tree_id = Column(Integer, ForeignKey("family_trees.id"), nullable=False, index=True)
+    partner_a_id = Column(Integer, ForeignKey("tree_persons.id"), nullable=True)
+    partner_b_id = Column(Integer, ForeignKey("tree_persons.id"), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    tree = relationship("FamilyTree", back_populates="families")
+    partner_a = relationship("TreePerson", foreign_keys=[partner_a_id])
+    partner_b = relationship("TreePerson", foreign_keys=[partner_b_id])
+    children = relationship(
+        "TreeFamilyChild", back_populates="family", cascade="all, delete-orphan"
+    )
+
+
+class TreeFamilyChild(Base):
+    __tablename__ = "tree_family_children"
+    __table_args__ = (UniqueConstraint("family_id", "person_id", name="uq_family_child"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    family_id = Column(Integer, ForeignKey("tree_families.id"), nullable=False, index=True)
+    person_id = Column(Integer, ForeignKey("tree_persons.id"), nullable=False, index=True)
+    sort_order = Column(Integer, default=0, nullable=False)
+
+    family = relationship("TreeFamily", back_populates="children")
+    person = relationship("TreePerson")
+
+
+class TreePersonLayout(Base):
+    __tablename__ = "tree_person_layouts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    person_id = Column(
+        Integer, ForeignKey("tree_persons.id"), nullable=False, unique=True, index=True
+    )
+    x = Column(Float, nullable=False, default=0)
+    y = Column(Float, nullable=False, default=0)
+
+    person = relationship("TreePerson", back_populates="layout")
+
+
+class TreeCollaborator(Base):
+    __tablename__ = "tree_collaborators"
+    __table_args__ = (UniqueConstraint("tree_id", "user_id", name="uq_tree_user"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    tree_id = Column(Integer, ForeignKey("family_trees.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    email = Column(String(255), nullable=True, index=True)
+    role = Column(String(16), nullable=False, default="editor")  # editor|viewer
+    invite_token = Column(String(64), unique=True, index=True, nullable=True)
+    status = Column(String(32), nullable=False, default="pending")  # pending|accepted
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    tree = relationship("FamilyTree", back_populates="collaborators")
+    user = relationship("User", back_populates="tree_collaborations")

@@ -1,30 +1,31 @@
 import io
-import json
+import logging
+from pathlib import Path
 
 import qrcode
 from fastapi import Depends, FastAPI, HTTPException, Response, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.security import OAuth2PasswordRequestForm
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 
-from .auth import create_access_token, get_current_user, get_password_hash, verify_password
+from .auth import get_current_user
 from .config import get_settings
-from .database import Base, engine, get_db
-from .models import FamilyTree, MemorialCard, User
+from .database import engine, get_db
+from .models import MemorialCard, User
+from .routers import auth as auth_router
+from .routers import trees as trees_router
+from .schema_upgrade import upgrade_schema
 from .schemas import (
-    FamilyTreeCreate,
-    FamilyTreeOut,
     MemorialCardCreate,
     MemorialCardOut,
     SiteMapResponse,
     SiteSection,
-    TokenResponse,
-    UserCreate,
-    UserOut,
 )
 
+logging.basicConfig(level=logging.INFO)
+
 settings = get_settings()
-Base.metadata.create_all(bind=engine)
+upgrade_schema(engine)
 
 app = FastAPI(title=settings.app_name, version="0.1.0")
 
@@ -36,47 +37,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+MEDIA_DIR = Path(__file__).resolve().parents[1] / "media"
+MEDIA_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/media", StaticFiles(directory=str(MEDIA_DIR)), name="media")
+
+app.include_router(auth_router.router)
+app.include_router(trees_router.router)
+
 
 @app.get("/api/health")
 def health_check():
     return {"status": "ok"}
-
-
-@app.post("/api/auth/register", response_model=UserOut, status_code=status.HTTP_201_CREATED)
-def register_user(payload: UserCreate, db: Session = Depends(get_db)):
-    existing = db.query(User).filter(User.email == payload.email).first()
-    if existing:
-        raise HTTPException(
-            status_code=400,
-            detail="Пользователь с таким email уже зарегистрирован",
-        )
-
-    user = User(
-        email=payload.email,
-        full_name=payload.full_name,
-        password_hash=get_password_hash(payload.password),
-    )
-    db.add(user)
-    db.commit()
-    db.refresh(user)
-    return user
-
-
-@app.post("/api/auth/login", response_model=TokenResponse)
-def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == form_data.username).first()
-    if not user:
-        raise HTTPException(status_code=401, detail="Пользователь с таким email не найден")
-    if not verify_password(form_data.password, user.password_hash):
-        raise HTTPException(status_code=401, detail="Неверный пароль")
-
-    token = create_access_token(subject=str(user.id))
-    return TokenResponse(access_token=token)
-
-
-@app.get("/api/auth/me", response_model=UserOut)
-def me(current_user: User = Depends(get_current_user)):
-    return current_user
 
 
 @app.post("/api/memorial-cards", response_model=MemorialCardOut, status_code=status.HTTP_201_CREATED)
@@ -98,32 +69,6 @@ def list_memorial_cards(
     current_user: User = Depends(get_current_user),
 ):
     return db.query(MemorialCard).filter(MemorialCard.owner_id == current_user.id).all()
-
-
-@app.post("/api/family-trees", response_model=FamilyTreeOut, status_code=status.HTTP_201_CREATED)
-def create_family_tree(
-    payload: FamilyTreeCreate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    try:
-        json.loads(payload.tree_json)
-    except json.JSONDecodeError as exc:
-        raise HTTPException(status_code=400, detail="tree_json must be valid JSON string") from exc
-
-    tree = FamilyTree(owner_id=current_user.id, **payload.model_dump())
-    db.add(tree)
-    db.commit()
-    db.refresh(tree)
-    return tree
-
-
-@app.get("/api/family-trees", response_model=list[FamilyTreeOut])
-def list_family_trees(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    return db.query(FamilyTree).filter(FamilyTree.owner_id == current_user.id).all()
 
 
 @app.get("/api/memorial-cards/{card_id}/qr")
