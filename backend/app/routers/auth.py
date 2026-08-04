@@ -10,7 +10,11 @@ from sqlalchemy.orm import Session
 from ..auth import create_access_token, get_current_user, get_password_hash, verify_password
 from ..config import get_settings
 from ..database import get_db
+from ..domain.enums import RoleCode
 from ..models import User
+from ..rbac.bootstrap import ensure_super_admin_from_env
+from ..rbac.service import assign_role_if_missing
+from ..rbac.user_payload import build_user_out
 from ..schemas import (
     MessageResponse,
     OAuthProvidersResponse,
@@ -75,6 +79,8 @@ def _find_or_link_oauth_user(db: Session, profile: oauth_providers.OAuthProfile)
         **{f"{profile.provider}_id": profile.provider_user_id},
     )
     db.add(user)
+    db.flush()
+    assign_role_if_missing(db, user, RoleCode.USER)
     db.commit()
     db.refresh(user)
     return user
@@ -96,9 +102,11 @@ def register_user(payload: UserCreate, db: Session = Depends(get_db)):
         email_verified=False,
     )
     db.add(user)
+    db.flush()
+    assign_role_if_missing(db, user, RoleCode.USER)
     db.commit()
     db.refresh(user)
-    return user
+    return build_user_out(db, user)
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -113,13 +121,25 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
         )
     if not verify_password(form_data.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Неверный пароль")
+    if not user.is_active:
+        raise HTTPException(status_code=403, detail="Аккаунт деактивирован")
 
     return _token_for_user(user)
 
 
 @router.get("/me", response_model=UserOut)
-def me(current_user: User = Depends(get_current_user)):
-    return current_user
+def me(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    from ..models import UserRole
+
+    has_any_role = db.query(UserRole).filter(UserRole.user_id == current_user.id).first()
+    if not has_any_role:
+        assign_role_if_missing(db, current_user, RoleCode.USER)
+        db.commit()
+    ensure_super_admin_from_env(db, current_user)
+    return build_user_out(db, current_user)
 
 
 @router.post("/phone/request-code", response_model=MessageResponse)
@@ -168,6 +188,8 @@ def phone_verify(payload: PhoneVerify, db: Session = Depends(get_db)):
         phone_verified=True,
     )
     db.add(user)
+    db.flush()
+    assign_role_if_missing(db, user, RoleCode.USER)
     db.commit()
     db.refresh(user)
     return _token_for_user(user)

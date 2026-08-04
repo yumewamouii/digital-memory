@@ -10,6 +10,17 @@ class UserCreate(BaseModel):
     password: str = Field(min_length=8, max_length=128)
 
 
+class OrganizationBrief(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    logo: str | None = None
+    subscription_plan: str = "free"
+    subscription_status: str = "active"
+    member_role: str | None = None
+
+
 class UserOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -20,7 +31,11 @@ class UserOut(BaseModel):
     email_verified: bool = False
     phone_verified: bool = False
     has_password: bool = False
+    is_active: bool = True
     created_at: datetime
+    roles: list[str] = []
+    permissions: list[str] = []
+    organization: OrganizationBrief | None = None
 
 
 class TokenResponse(BaseModel):
@@ -96,6 +111,24 @@ class MemorialCardCreate(BaseModel):
     photo_url: str | None = None
     cemetery_name: str | None = None
     cemetery_location: str | None = None
+    visibility: Literal["private", "unlisted", "public"] | None = None
+    status: Literal["draft", "published", "archived"] | None = None
+    organization_id: int | None = None
+    owner_id: int | None = None
+
+
+class MemorialCardUpdate(BaseModel):
+    first_name: str | None = None
+    last_name: str | None = None
+    middle_name: str | None = None
+    birth_date: date | None = None
+    death_date: date | None = None
+    biography: str | None = None
+    photo_url: str | None = None
+    cemetery_name: str | None = None
+    cemetery_location: str | None = None
+    visibility: Literal["private", "unlisted", "public"] | None = None
+    status: Literal["draft", "published", "archived"] | None = None
 
 
 class MemorialCardOut(BaseModel):
@@ -103,6 +136,8 @@ class MemorialCardOut(BaseModel):
 
     id: int
     owner_id: int
+    created_by: int | None = None
+    organization_id: int | None = None
     first_name: str
     last_name: str
     middle_name: str | None
@@ -112,6 +147,44 @@ class MemorialCardOut(BaseModel):
     photo_url: str | None
     cemetery_name: str | None
     cemetery_location: str | None
+    visibility: str = "private"
+    status: str = "published"
+    deleted_at: datetime | None = None
+    created_at: datetime
+    updated_at: datetime | None = None
+    can_edit: bool = False
+    can_delete: bool = False
+    can_transfer: bool = False
+    can_assign_owner: bool = False
+
+
+class MemorialTransferRequest(BaseModel):
+    new_owner_id: int
+
+
+class MemorialAssignOwnerRequest(BaseModel):
+    owner_id: int
+
+
+class OwnershipClaimCreate(BaseModel):
+    message: str | None = Field(default=None, max_length=2000)
+
+
+class OwnershipClaimReview(BaseModel):
+    approve: bool
+    message: str | None = None
+
+
+class OwnershipClaimOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    memorial_id: int
+    requester_id: int
+    message: str | None = None
+    status: str
+    reviewed_by: int | None = None
+    reviewed_at: datetime | None = None
     created_at: datetime
 
 

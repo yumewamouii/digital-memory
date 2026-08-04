@@ -1,7 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import userIcon from "../assets/Icon_Avatar.svg";
 import { useAuth } from "../context/AuthContext";
+import { usePermissions } from "../auth/usePermissions";
+import { Permission } from "../auth/permissions";
 
 function DropdownLink({ to, children, className = "", onNavigate }) {
   const navigate = useNavigate();
@@ -47,23 +49,65 @@ function NavDropdown({ to, label, children, open, onToggle, onNavigate }) {
 }
 
 export default function Header() {
-  const { token, openAuthModal, logout } = useAuth();
+  const { token, user, openAuthModal, logout } = useAuth();
+  const { hasAny } = usePermissions();
   const location = useLocation();
+  const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
   const [openDropdown, setOpenDropdown] = useState("");
+  const [accountOpen, setAccountOpen] = useState(false);
+  const accountRef = useRef(null);
+
+  const showPartner = hasAny(
+    Permission.ORG_READ,
+    Permission.ORG_CREATE,
+    Permission.MEMORIAL_CREATE_ORG,
+    Permission.ORG_MANAGE_ANY,
+  );
+  const showAdmin = hasAny(
+    Permission.ADMIN_ACCESS,
+    Permission.USER_MANAGE,
+    Permission.AUDIT_READ,
+    Permission.ORG_MANAGE_ANY,
+  );
 
   useEffect(() => {
     setMenuOpen(false);
     setOpenDropdown("");
+    setAccountOpen(false);
   }, [location.pathname, location.hash]);
+
+  useEffect(() => {
+    if (!accountOpen) return undefined;
+    const onPointerDown = (event) => {
+      if (accountRef.current && !accountRef.current.contains(event.target)) {
+        setAccountOpen(false);
+      }
+    };
+    const onKeyDown = (event) => {
+      if (event.key === "Escape") setAccountOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [accountOpen]);
 
   const closeAll = () => {
     setMenuOpen(false);
     setOpenDropdown("");
+    setAccountOpen(false);
   };
 
   const toggleDropdown = (key) => {
     setOpenDropdown((current) => (current === key ? "" : key));
+  };
+
+  const goAccountLink = (path) => {
+    closeAll();
+    navigate(path);
   };
 
   return (
@@ -71,7 +115,7 @@ export default function Header() {
       <div className="topbar">
         <div className="topbar-inner">
           <span>
-            Память о близких и семейная история · ГисМемориал
+            Семейные фотографии, документы и воспоминания — в одном месте
           </span>
         </div>
       </div>
@@ -92,12 +136,13 @@ export default function Header() {
         </button>
 
         <nav className={`nav${menuOpen ? " open" : ""}`}>
-          <div className={`nav-item${openDropdown === "home" ? " open" : ""}`}>
+          <div className={`nav-item${openDropdown === "more" ? " open" : ""}`}>
             <button
               type="button"
               className="nav-label burger-label"
-              aria-label="Главная"
-              onClick={() => toggleDropdown("home")}
+              aria-label="Ещё разделы"
+              aria-expanded={openDropdown === "more"}
+              onClick={() => toggleDropdown("more")}
             >
               ≡
             </button>
@@ -105,17 +150,20 @@ export default function Header() {
               <DropdownLink to="/#home-top" onNavigate={closeAll}>
                 Главная
               </DropdownLink>
+              <DropdownLink to="/memory/museum" onNavigate={closeAll}>
+                Музей памяти
+              </DropdownLink>
               <DropdownLink to="/pricing" onNavigate={closeAll}>
                 Цены
               </DropdownLink>
               <DropdownLink to="/faq" onNavigate={closeAll}>
                 Вопросы и ответы
               </DropdownLink>
-              <DropdownLink to="/about" onNavigate={closeAll}>
-                О сервисе
+              <DropdownLink to="/services" onNavigate={closeAll}>
+                Услуги
               </DropdownLink>
-              <DropdownLink to="/#home-contacts" onNavigate={closeAll}>
-                Контакты
+              <DropdownLink to="/sitemap" onNavigate={closeAll}>
+                Карта сайта
               </DropdownLink>
             </div>
           </div>
@@ -181,9 +229,6 @@ export default function Header() {
             <DropdownLink to="/family-tree#tree-subscription" onNavigate={closeAll}>
               Тарифы
             </DropdownLink>
-            <DropdownLink to="/family-tree#tree-faq" onNavigate={closeAll}>
-              Вопросы и ответы
-            </DropdownLink>
             <DropdownLink
               to="/family-tree/create"
               className="dropdown-btn"
@@ -200,28 +245,92 @@ export default function Header() {
           >
             О сервисе
           </NavLink>
+
+          <NavLink
+            to="/contacts"
+            className={({ isActive }) => `nav-link${isActive ? " active" : ""}`}
+            onClick={closeAll}
+          >
+            Контакты
+          </NavLink>
         </nav>
 
         <div className="header-actions">
           {token ? (
-            <>
-              <NavLink
-                to="/cabinet"
-                className={({ isActive }) =>
-                  `btn btn-ghost btn-sm header-cabinet-link${isActive ? " active" : ""}`
-                }
-                onClick={closeAll}
-              >
-                Личный кабинет
-              </NavLink>
+            <div
+              className={`account-menu${accountOpen ? " open" : ""}`}
+              ref={accountRef}
+            >
               <button
                 type="button"
-                className="btn btn-ghost btn-sm header-auth-text"
-                onClick={logout}
+                className="btn btn-ghost btn-sm account-menu-trigger"
+                aria-expanded={accountOpen}
+                aria-haspopup="menu"
+                aria-label="Аккаунт"
+                title="Аккаунт"
+                onClick={() => setAccountOpen((v) => !v)}
               >
-                Выйти
+                <img src={userIcon} alt="" className="account-menu-avatar" />
               </button>
-            </>
+              {accountOpen && (
+                <div className="account-dropdown" role="menu">
+                  {(user?.full_name || user?.email) && (
+                    <div className="account-dropdown-meta">
+                      {user?.full_name && <strong>{user.full_name}</strong>}
+                      {user?.email && <span>{user.email}</span>}
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="account-dropdown-item"
+                    onClick={() => goAccountLink("/cabinet")}
+                  >
+                    Личный кабинет
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="account-dropdown-item"
+                    onClick={() => goAccountLink("/settings")}
+                  >
+                    Настройки
+                  </button>
+                  {showPartner && (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="account-dropdown-item"
+                      onClick={() => goAccountLink("/partner")}
+                    >
+                      Кабинет партнёра
+                    </button>
+                  )}
+                  {showAdmin && (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="account-dropdown-item"
+                      onClick={() => goAccountLink("/admin")}
+                    >
+                      Админ-панель
+                    </button>
+                  )}
+                  <div className="account-dropdown-divider" />
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="account-dropdown-item account-dropdown-danger"
+                    onClick={() => {
+                      closeAll();
+                      logout();
+                    }}
+                  >
+                    Выйти
+                  </button>
+                </div>
+              )}
+            </div>
           ) : (
             <>
               <button

@@ -3,9 +3,11 @@ import axios from "axios";
 import { Link } from "react-router-dom";
 import { API } from "../api";
 import { deleteTree, listTrees, updateTree } from "../api/trees";
-import ChangePasswordPanel from "../components/ChangePasswordPanel";
 import PageHero from "../components/PageHero";
 import { useAuth } from "../context/AuthContext";
+import { usePermissions } from "../auth/usePermissions";
+import { Permission } from "../auth/permissions";
+import { deleteMemorial } from "../api/memorials";
 import { personDisplayName, personSearchText } from "../utils/treeGraph";
 
 function formatTreeDate(value) {
@@ -34,6 +36,7 @@ function formatVisibility(value) {
 
 export default function CabinetPage() {
   const { token, authHeaders, openAuthModal, setMessage } = useAuth();
+  const { hasAny } = usePermissions();
   const [cards, setCards] = useState([]);
   const [trees, setTrees] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -64,6 +67,17 @@ export default function CabinetPage() {
   useEffect(() => {
     if (token) loadData().catch(() => {});
   }, [token]);
+
+  const removeCard = async (card) => {
+    if (!window.confirm(`Удалить карточку «${card.last_name} ${card.first_name}»?`)) return;
+    try {
+      await deleteMemorial(card.id, authHeaders);
+      setCards((prev) => prev.filter((item) => item.id !== card.id));
+      setMessage("Карточка удалена");
+    } catch {
+      setMessage("Не удалось удалить карточку");
+    }
+  };
 
   const openQr = async (cardId) => {
     try {
@@ -170,7 +184,42 @@ export default function CabinetPage() {
             </div>
           ) : (
             <>
-              <ChangePasswordPanel />
+              {(hasAny(
+                Permission.ORG_READ,
+                Permission.ORG_CREATE,
+                Permission.MEMORIAL_CREATE_ORG,
+              ) ||
+                hasAny(Permission.ADMIN_ACCESS, Permission.USER_MANAGE, Permission.AUDIT_READ)) && (
+                <div className="cabinet-workspaces">
+                  <h2 className="cabinet-section-title">Рабочие пространства</h2>
+                  <ul className="cabinet-workspace-list">
+                    {hasAny(
+                      Permission.ORG_READ,
+                      Permission.ORG_CREATE,
+                      Permission.MEMORIAL_CREATE_ORG,
+                    ) && (
+                      <li>
+                        <Link to="/partner" className="cabinet-workspace-link">
+                          <strong>Кабинет партнёра</strong>
+                          <span>Организация, сотрудники и карточки клиентов</span>
+                        </Link>
+                      </li>
+                    )}
+                    {hasAny(
+                      Permission.ADMIN_ACCESS,
+                      Permission.USER_MANAGE,
+                      Permission.AUDIT_READ,
+                    ) && (
+                      <li>
+                        <Link to="/admin" className="cabinet-workspace-link">
+                          <strong>Админ-панель</strong>
+                          <span>Пользователи, модерация и журнал действий</span>
+                        </Link>
+                      </li>
+                    )}
+                  </ul>
+                </div>
+              )}
 
               <div className="cabinet-actions">
                 <Link to="/memory/create" className="btn btn-primary">
@@ -202,14 +251,28 @@ export default function CabinetPage() {
                       <p style={{ marginBottom: "1rem" }}>
                         {card.biography || "Биография пока не заполнена"}
                       </p>
-                      <button
-                        type="button"
-                        className="btn btn-outline btn-sm"
-                        onClick={() => openQr(card.id)}
-                        disabled={qrLoadingId === card.id}
-                      >
-                        {qrLoadingId === card.id ? "Открываем..." : "Открыть QR-код"}
-                      </button>
+                      <div className="cabinet-tree-actions">
+                        <Link to={`/memory/${card.id}`} className="btn btn-ghost btn-sm">
+                          Открыть
+                        </Link>
+                        <button
+                          type="button"
+                          className="btn btn-outline btn-sm"
+                          onClick={() => openQr(card.id)}
+                          disabled={qrLoadingId === card.id}
+                        >
+                          {qrLoadingId === card.id ? "Открываем..." : "QR-код"}
+                        </button>
+                        {card.can_delete !== false && (
+                          <button
+                            type="button"
+                            className="btn btn-ghost btn-sm"
+                            onClick={() => removeCard(card)}
+                          >
+                            Удалить
+                          </button>
+                        )}
+                      </div>
                     </article>
                   ))
                 )}

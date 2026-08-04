@@ -9,6 +9,7 @@ const footerColumns = [
       { label: "Вопросы и ответы", to: "/faq" },
       { label: "О сервисе", to: "/about" },
       { label: "Личный кабинет", to: "/cabinet" },
+      { label: "Настройки", to: "/settings" },
       { label: "Контакты", to: "/contacts" },
     ],
   },
@@ -68,7 +69,8 @@ export default function Footer() {
         <div className="footer-brand-block">
           <p className="footer-brand">ГисМемориал</p>
           <p className="footer-tagline">
-            Память о близких, семейная история и памятные места — для следующих поколений.
+            Сохраняйте фотографии, документы, биографии и места захоронения в одном
+            цифровом пространстве, чтобы они не потерялись со временем.
           </p>
         </div>
         <div className="footer-support">

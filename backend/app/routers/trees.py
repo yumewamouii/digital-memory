@@ -19,13 +19,17 @@ from ..schemas import (
     RelativeCreate,
 )
 from ..services.gedcom_import import import_gedcom_into_tree
+from ..domain.enums import PermissionCode, TreeAccessLevel
+from ..rbac import service as rbac_service
 from ..services.tree_access import (
     can_edit_tree,
-    get_collaboration,
+    can_manage_tree_access,
     new_guest_token,
     new_invite_token,
     new_share_slug,
     require_tree_edit,
+    require_tree_view,
+    resolve_tree_access_level,
 )
 from ..services.tree_demo import clone_demo_tree, ensure_demo_tree
 from ..services.tree_layout import auto_layout_tree, ensure_layout
@@ -59,6 +63,16 @@ def list_trees(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    if rbac_service.user_has_permission(db, current_user, PermissionCode.TREE_READ_ANY):
+        trees = (
+            db.query(FamilyTree)
+            .options(joinedload(FamilyTree.persons))
+            .filter(FamilyTree.is_demo_template.is_(False))
+            .order_by(FamilyTree.updated_at.desc())
+            .all()
+        )
+        return [tree_summary_dict(t) for t in trees]
+
     trees = (
         db.query(FamilyTree)
         .options(joinedload(FamilyTree.persons))
@@ -238,16 +252,14 @@ def get_by_slug(
     if not tree:
         raise HTTPException(status_code=404, detail="Древо не найдено")
     tree = load_tree(db, tree.id)
-    collab = get_collaboration(db, tree, current_user)
-    if tree.visibility == "private" and not (
-        (current_user and tree.owner_id == current_user.id)
-        or collab
-        or (guest_token and tree.guest_token == guest_token)
-        or tree.is_demo_template
-    ):
-        raise HTTPException(status_code=404, detail="Древо не найдено")
+    require_tree_view(db, tree, current_user, guest_token)
+    level = resolve_tree_access_level(db, tree, current_user, guest_token)
     can_edit = can_edit_tree(db, tree, current_user, guest_token)
-    return tree_detail_dict(tree, can_edit=can_edit)
+    return tree_detail_dict(
+        tree,
+        can_edit=can_edit,
+        access_level=level.value if level else None,
+    )
 
 
 @router.get("/{tree_id}")
@@ -258,20 +270,12 @@ def get_tree(
     guest_token: str | None = Depends(_guest),
 ):
     tree = _get_tree_or_404(db, tree_id)
-    is_owner = bool(current_user and tree.owner_id == current_user.id)
-    is_guest = bool(guest_token and tree.guest_token and tree.guest_token == guest_token)
-    collab = get_collaboration(db, tree, current_user)
-    allowed = (
-        tree.is_demo_template
-        or is_owner
-        or is_guest
-        or bool(collab)
-        or tree.visibility in ("link", "public")
-    )
-    if not allowed:
-        raise HTTPException(status_code=404, detail="Древо не найдено")
+    require_tree_view(db, tree, current_user, guest_token)
+    level = resolve_tree_access_level(db, tree, current_user, guest_token)
     return tree_detail_dict(
-        tree, can_edit=can_edit_tree(db, tree, current_user, guest_token)
+        tree,
+        can_edit=can_edit_tree(db, tree, current_user, guest_token),
+        access_level=level.value if level else None,
     )
 
 
@@ -307,12 +311,15 @@ def remove_tree(
     tree = _get_tree_or_404(db, tree_id)
     if tree.is_demo_template:
         raise HTTPException(status_code=403, detail="Демо-шаблон нельзя удалить")
-    # Only owner or guest owner
-    if current_user and tree.owner_id == current_user.id:
-        pass
-    elif guest_token and tree.guest_token == guest_token and not tree.owner_id:
-        pass
-    else:
+    level = resolve_tree_access_level(db, tree, current_user, guest_token)
+    allowed = level == TreeAccessLevel.OWNER or (
+        guest_token and tree.guest_token == guest_token and not tree.owner_id
+    )
+    if current_user and rbac_service.user_has_permission(
+        db, current_user, PermissionCode.TREE_DELETE_ANY
+    ):
+        allowed = True
+    if not allowed:
         raise HTTPException(status_code=403, detail="Удалить может только владелец")
     db.delete(tree)
     db.commit()
@@ -519,8 +526,8 @@ def list_collaborators(
     current_user: User = Depends(get_current_user),
 ):
     tree = _get_tree_or_404(db, tree_id)
-    if tree.owner_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Только владелец")
+    if not can_manage_tree_access(db, tree, current_user):
+        raise HTTPException(status_code=403, detail="Нет права управлять доступом")
     rows = db.query(TreeCollaborator).filter(TreeCollaborator.tree_id == tree_id).all()
     return [
         {
@@ -530,6 +537,7 @@ def list_collaborators(
             "role": r.role,
             "status": r.status,
             "invite_token": r.invite_token,
+            "access_level": r.role,
         }
         for r in rows
     ]
@@ -543,8 +551,13 @@ def invite_collaborator(
     current_user: User = Depends(get_current_user),
 ):
     tree = _get_tree_or_404(db, tree_id)
-    if tree.owner_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Только владелец")
+    if not can_manage_tree_access(db, tree, current_user):
+        raise HTTPException(status_code=403, detail="Нет права управлять доступом")
+    if not rbac_service.user_has_permission(db, current_user, PermissionCode.TREE_INVITE):
+        if not rbac_service.user_has_permission(
+            db, current_user, PermissionCode.TREE_UPDATE_ANY
+        ):
+            raise HTTPException(status_code=403, detail="Нет права приглашать")
     email = str(payload.email).lower()
     existing_user = db.query(User).filter(User.email == email).first()
     row = TreeCollaborator(

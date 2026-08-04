@@ -58,7 +58,13 @@ def load_tree(db: Session, tree_id: int) -> FamilyTree | None:
     )
 
 
-def tree_detail_dict(tree: FamilyTree, *, can_edit: bool, can_view: bool = True) -> dict:
+def tree_detail_dict(
+    tree: FamilyTree,
+    *,
+    can_edit: bool,
+    can_view: bool = True,
+    access_level: str | None = None,
+) -> dict:
     persons = sorted(tree.persons or [], key=lambda p: p.id)
     families = sorted(tree.families or [], key=lambda f: f.id)
     return {
@@ -75,6 +81,7 @@ def tree_detail_dict(tree: FamilyTree, *, can_edit: bool, can_view: bool = True)
         "person_count": len(persons),
         "can_edit": can_edit,
         "can_view": can_view,
+        "access_level": access_level,  # owner | editor | viewer
         "persons": [person_to_dict(p) for p in persons],
         "families": [family_to_dict(f) for f in families],
     }

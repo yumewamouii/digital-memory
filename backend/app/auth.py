@@ -64,6 +64,15 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     return user
 
 
+def get_current_active_user(user: User = Depends(get_current_user)) -> User:
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Аккаунт деактивирован",
+        )
+    return user
+
+
 def get_current_user_optional(
     token: str | None = Depends(oauth2_scheme_optional),
     db: Session = Depends(get_db),
@@ -71,6 +80,9 @@ def get_current_user_optional(
     if not token:
         return None
     try:
-        return get_current_user(token=token, db=db)
+        user = get_current_user(token=token, db=db)
+        if not user.is_active:
+            return None
+        return user
     except HTTPException:
         return None

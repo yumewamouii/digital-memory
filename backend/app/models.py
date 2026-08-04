@@ -32,13 +32,116 @@ class User(Base):
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    memorial_cards = relationship("MemorialCard", back_populates="owner")
+    memorial_cards = relationship(
+        "MemorialCard",
+        back_populates="owner",
+        foreign_keys="MemorialCard.owner_id",
+    )
     family_trees = relationship("FamilyTree", back_populates="owner")
     tree_collaborations = relationship("TreeCollaborator", back_populates="user")
+    user_roles = relationship("UserRole", back_populates="user", cascade="all, delete-orphan")
+    organization_memberships = relationship(
+        "OrganizationMember",
+        back_populates="user",
+        foreign_keys="OrganizationMember.user_id",
+        cascade="all, delete-orphan",
+    )
 
     @property
     def has_password(self) -> bool:
         return bool(self.password_hash)
+
+
+class Role(Base):
+    __tablename__ = "roles"
+
+    id = Column(Integer, primary_key=True, index=True)
+    code = Column(String(64), unique=True, nullable=False, index=True)
+    name = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    is_system = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    role_permissions = relationship(
+        "RolePermission", back_populates="role", cascade="all, delete-orphan"
+    )
+    user_roles = relationship("UserRole", back_populates="role", cascade="all, delete-orphan")
+
+
+class Permission(Base):
+    __tablename__ = "permissions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    code = Column(String(128), unique=True, nullable=False, index=True)
+    description = Column(String(500), nullable=True)
+    category = Column(String(64), nullable=False, default="general")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    role_permissions = relationship(
+        "RolePermission", back_populates="permission", cascade="all, delete-orphan"
+    )
+
+
+class RolePermission(Base):
+    __tablename__ = "role_permissions"
+    __table_args__ = (UniqueConstraint("role_id", "permission_id", name="uq_role_permission"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    role_id = Column(Integer, ForeignKey("roles.id"), nullable=False, index=True)
+    permission_id = Column(Integer, ForeignKey("permissions.id"), nullable=False, index=True)
+
+    role = relationship("Role", back_populates="role_permissions")
+    permission = relationship("Permission", back_populates="role_permissions")
+
+
+class UserRole(Base):
+    __tablename__ = "user_roles"
+    __table_args__ = (UniqueConstraint("user_id", "role_id", name="uq_user_role"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    role_id = Column(Integer, ForeignKey("roles.id"), nullable=False, index=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    user = relationship("User", back_populates="user_roles")
+    role = relationship("Role", back_populates="user_roles")
+
+
+class Organization(Base):
+    __tablename__ = "organizations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False)
+    logo = Column(String(500), nullable=True)
+    subscription_plan = Column(String(64), nullable=False, default="free")
+    subscription_status = Column(String(64), nullable=False, default="active")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    deleted_at = Column(DateTime(timezone=True), nullable=True)
+
+    members = relationship(
+        "OrganizationMember", back_populates="organization", cascade="all, delete-orphan"
+    )
+    memorials = relationship("MemorialCard", back_populates="organization")
+
+
+class OrganizationMember(Base):
+    __tablename__ = "organization_members"
+    __table_args__ = (
+        UniqueConstraint("organization_id", "user_id", name="uq_org_user"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    member_role = Column(String(32), nullable=False, default="employee")  # owner|employee
+    invited_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    status = Column(String(32), nullable=False, default="active")  # pending|active|revoked
+    invite_token = Column(String(64), unique=True, index=True, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    organization = relationship("Organization", back_populates="members")
+    user = relationship("User", back_populates="organization_memberships", foreign_keys=[user_id])
+    inviter = relationship("User", foreign_keys=[invited_by])
 
 
 class AuthCode(Base):
@@ -59,7 +162,9 @@ class MemorialCard(Base):
     __tablename__ = "memorial_cards"
 
     id = Column(Integer, primary_key=True, index=True)
-    owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    owner_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=True, index=True)
     first_name = Column(String(120), nullable=False)
     last_name = Column(String(120), nullable=False)
     middle_name = Column(String(120), nullable=True)
@@ -69,9 +174,53 @@ class MemorialCard(Base):
     photo_url = Column(String(500), nullable=True)
     cemetery_name = Column(String(255), nullable=True)
     cemetery_location = Column(String(255), nullable=True)
+    visibility = Column(String(32), nullable=False, default="private")
+    status = Column(String(32), nullable=False, default="published")
+    deleted_at = Column(DateTime(timezone=True), nullable=True)
+    deleted_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    owner = relationship("User", back_populates="memorial_cards", foreign_keys=[owner_id])
+    creator = relationship("User", foreign_keys=[created_by])
+    deleter = relationship("User", foreign_keys=[deleted_by])
+    organization = relationship("Organization", back_populates="memorials")
+    ownership_claims = relationship(
+        "OwnershipClaim", back_populates="memorial", cascade="all, delete-orphan"
+    )
+
+
+class OwnershipClaim(Base):
+    __tablename__ = "ownership_claims"
+
+    id = Column(Integer, primary_key=True, index=True)
+    memorial_id = Column(Integer, ForeignKey("memorial_cards.id"), nullable=False, index=True)
+    requester_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    message = Column(Text, nullable=True)
+    status = Column(String(32), nullable=False, default="pending")
+    reviewed_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    reviewed_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    owner = relationship("User", back_populates="memorial_cards")
+    memorial = relationship("MemorialCard", back_populates="ownership_claims")
+    requester = relationship("User", foreign_keys=[requester_id])
+    reviewer = relationship("User", foreign_keys=[reviewed_by])
+
+
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    action = Column(String(128), nullable=False, index=True)
+    entity_type = Column(String(64), nullable=False, index=True)
+    entity_id = Column(String(64), nullable=True, index=True)
+    ip_address = Column(String(64), nullable=True)
+    old_value = Column(Text, nullable=True)
+    new_value = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+    user = relationship("User")
 
 
 class FamilyTree(Base):

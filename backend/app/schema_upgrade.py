@@ -29,6 +29,16 @@ FAMILY_TREE_COLUMNS: dict[str, str] = {
     "updated_at": "DATETIME",
 }
 
+MEMORIAL_CARD_COLUMNS: dict[str, str] = {
+    "created_by": "INTEGER",
+    "organization_id": "INTEGER",
+    "visibility": "VARCHAR(32) DEFAULT 'private'",
+    "status": "VARCHAR(32) DEFAULT 'published'",
+    "deleted_at": "DATETIME",
+    "deleted_by": "INTEGER",
+    "updated_at": "DATETIME",
+}
+
 
 def _existing_columns(engine: Engine, table: str) -> set[str]:
     inspector = inspect(engine)
@@ -231,18 +241,58 @@ def upgrade_schema(engine: Engine) -> None:
     # Ensure new tables exist after model changes
     Base.metadata.create_all(bind=engine)
 
-    # Migrate legacy tree_json + seed demo
+    existing_memorials = _existing_columns(engine, "memorial_cards")
+    if existing_memorials:
+        with engine.begin() as conn:
+            for name, ddl_type in MEMORIAL_CARD_COLUMNS.items():
+                if name not in existing_memorials:
+                    logger.info("Adding column memorial_cards.%s", name)
+                    conn.execute(text(f"ALTER TABLE memorial_cards ADD COLUMN {name} {ddl_type}"))
+
+        # Backfill created_by / visibility / status for existing rows
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    """
+                    UPDATE memorial_cards
+                    SET created_by = owner_id
+                    WHERE created_by IS NULL
+                    """
+                )
+            )
+            conn.execute(
+                text(
+                    """
+                    UPDATE memorial_cards
+                    SET visibility = 'private'
+                    WHERE visibility IS NULL OR visibility = ''
+                    """
+                )
+            )
+            conn.execute(
+                text(
+                    """
+                    UPDATE memorial_cards
+                    SET status = 'published'
+                    WHERE status IS NULL OR status = ''
+                    """
+                )
+            )
+
+    # Migrate legacy tree_json + seed demo + RBAC
     db: Session = SessionLocal()
     try:
         from .services.tree_demo import ensure_demo_tree
         from .services.tree_migrate import migrate_all_legacy_trees
+        from .seed.rbac_seed import seed_rbac
 
         migrated = migrate_all_legacy_trees(db)
         if migrated:
             logger.info("Migrated %s legacy family trees", migrated)
         ensure_demo_tree(db)
+        seed_rbac(db)
     except Exception:
-        logger.exception("Tree migration/demo seed failed")
+        logger.exception("Tree migration/demo/RBAC seed failed")
         db.rollback()
     finally:
         db.close()

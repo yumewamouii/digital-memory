@@ -1,10 +1,18 @@
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# Always load backend/.env (not cwd-relative, not .env.example)
+_ENV_FILE = Path(__file__).resolve().parents[1] / ".env"
+
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=str(_ENV_FILE),
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
 
     app_name: str = "ГисМемориал"
     secret_key: str = "change_me_in_prod"
@@ -23,6 +31,9 @@ class Settings(BaseSettings):
     vk_client_secret: str = ""
     mailru_client_id: str = ""
     mailru_client_secret: str = ""
+
+    # Bootstrap super admin by email after seed (optional)
+    super_admin_email: str = ""
 
     @property
     def cors_origin_list(self) -> list[str]:
