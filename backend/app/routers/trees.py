@@ -1,14 +1,16 @@
 from __future__ import annotations
 
-from pathlib import Path
+from datetime import datetime, timezone
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, File, Header, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Header, HTTPException, Request, UploadFile, status
 from sqlalchemy.orm import Session, joinedload
 
 from ..auth import get_current_user, get_current_user_optional
 from ..database import get_db
 from ..models import FamilyTree, MemorialCard, TreeCollaborator, TreePerson, User
+from ..services.rate_limit import client_ip, enforce_rate_limit
+from ..services.uploads import IMAGE_TYPES, require_image, write_media_bytes
 from ..schemas import (
     CollaboratorInvite,
     FamilyTreeCreate,
@@ -46,7 +48,6 @@ from ..services.tree_ops import (
 from ..services.tree_serialize import load_tree, tree_detail_dict, tree_summary_dict
 
 router = APIRouter(prefix="/api/family-trees", tags=["family-trees"])
-MEDIA_ROOT = Path(__file__).resolve().parents[2] / "media" / "tree-photos"
 
 
 def _guest(x_guest_token: str | None = Header(default=None, alias="X-Guest-Token")) -> str | None:
@@ -59,6 +60,43 @@ def _get_tree_or_404(db: Session, tree_id: int) -> FamilyTree:
     if not tree:
         raise HTTPException(status_code=404, detail="Древо не найдено")
     return tree
+
+
+def _assert_tree_not_stale(tree: FamilyTree, if_match: str | None) -> None:
+    """Optimistic concurrency via If-Match: <tree.updated_at ISO>."""
+    if not if_match:
+        return
+    current = tree.updated_at
+    if current is None:
+        return
+    if current.tzinfo is None:
+        current = current.replace(tzinfo=timezone.utc)
+    raw = if_match.strip().strip('"')
+    try:
+        expected = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Некорректный заголовок If-Match") from exc
+    if expected.tzinfo is None:
+        expected = expected.replace(tzinfo=timezone.utc)
+    if int(current.timestamp()) != int(expected.timestamp()):
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": "Древо изменено. Обновите страницу и повторите.",
+                "updated_at": current.isoformat(),
+            },
+        )
+
+
+def _limit_guest_mutation(request: Request, current_user: User | None, *, action: str) -> None:
+    if current_user:
+        return
+    enforce_rate_limit(
+        f"guest-tree:{action}:{client_ip(request)}",
+        max_calls=20,
+        window_seconds=3600,
+        detail="Слишком много гостевых действий. Войдите или попробуйте позже.",
+    )
 
 
 @router.get("")
@@ -104,10 +142,12 @@ def list_trees(
 @router.post("", status_code=status.HTTP_201_CREATED)
 def create_tree(
     payload: FamilyTreeCreate,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User | None = Depends(get_current_user_optional),
     guest_token: str | None = Depends(_guest),
 ):
+    _limit_guest_mutation(request, current_user, action="create")
     token = guest_token or (new_guest_token() if not current_user else None)
     tree = FamilyTree(
         owner_id=current_user.id if current_user else None,
@@ -130,8 +170,10 @@ def create_tree(
 @router.post("/guest", status_code=status.HTTP_201_CREATED)
 def create_guest_tree(
     payload: FamilyTreeCreate,
+    request: Request,
     db: Session = Depends(get_db),
 ):
+    _limit_guest_mutation(request, None, action="guest-create")
     token = new_guest_token()
     tree = FamilyTree(
         owner_id=None,
@@ -176,10 +218,12 @@ def get_demo(db: Session = Depends(get_db)):
 
 @router.post("/demo/clone", status_code=status.HTTP_201_CREATED)
 def clone_demo(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User | None = Depends(get_current_user_optional),
     guest_token: str | None = Depends(_guest),
 ):
+    _limit_guest_mutation(request, current_user, action="demo-clone")
     token = None
     if not current_user:
         token = guest_token or new_guest_token()
@@ -198,11 +242,13 @@ def clone_demo(
 
 @router.post("/import/gedcom", status_code=status.HTTP_201_CREATED)
 async def import_gedcom(
+    request: Request,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     current_user: User | None = Depends(get_current_user_optional),
     guest_token: str | None = Depends(_guest),
 ):
+    _limit_guest_mutation(request, current_user, action="gedcom")
     # Cap before parsing: unbounded GEDCOM can exhaust memory / fill DB.
     GEDCOM_MAX_BYTES = 5 * 1024 * 1024
     content = await file.read(GEDCOM_MAX_BYTES + 1)
@@ -296,9 +342,11 @@ def update_tree(
     db: Session = Depends(get_db),
     current_user: User | None = Depends(get_current_user_optional),
     guest_token: str | None = Depends(_guest),
+    if_match: str | None = Header(default=None, alias="If-Match"),
 ):
     tree = _get_tree_or_404(db, tree_id)
     require_tree_edit(db, tree, current_user, guest_token)
+    _assert_tree_not_stale(tree, if_match)
     data = payload.model_dump(exclude_unset=True)
     data.pop("tree_json", None)
     for key, value in data.items():
@@ -382,9 +430,11 @@ def update_tree_person(
     db: Session = Depends(get_db),
     current_user: User | None = Depends(get_current_user_optional),
     guest_token: str | None = Depends(_guest),
+    if_match: str | None = Header(default=None, alias="If-Match"),
 ):
     tree = _get_tree_or_404(db, tree_id)
     require_tree_edit(db, tree, current_user, guest_token)
+    _assert_tree_not_stale(tree, if_match)
     person = db.query(TreePerson).filter(TreePerson.id == person_id, TreePerson.tree_id == tree_id).first()
     if not person:
         raise HTTPException(status_code=404, detail="Человек не найден")
@@ -489,8 +539,10 @@ def update_layout(
     db: Session = Depends(get_db),
     current_user: User | None = Depends(get_current_user_optional),
     guest_token: str | None = Depends(_guest),
+    if_match: str | None = Header(default=None, alias="If-Match"),
 ):
     tree = _get_tree_or_404(db, tree_id)
+    _assert_tree_not_stale(tree, if_match)
     require_tree_edit(db, tree, current_user, guest_token)
     persons = {p.id: p for p in tree.persons}
     for item in payload.items:
@@ -530,29 +582,20 @@ async def upload_photo(
     db: Session = Depends(get_db),
     current_user: User | None = Depends(get_current_user_optional),
     guest_token: str | None = Depends(_guest),
+    if_match: str | None = Header(default=None, alias="If-Match"),
 ):
     tree = _get_tree_or_404(db, tree_id)
     require_tree_edit(db, tree, current_user, guest_token)
+    _assert_tree_not_stale(tree, if_match)
     person = db.query(TreePerson).filter(TreePerson.id == person_id, TreePerson.tree_id == tree_id).first()
     if not person:
         raise HTTPException(status_code=404, detail="Человек не найден")
-    content_type = (file.content_type or "").lower()
-    if content_type not in ("image/jpeg", "image/png", "image/webp", "image/gif"):
-        raise HTTPException(status_code=400, detail="Допустимы JPEG, PNG, WEBP, GIF")
     data = await file.read()
     if len(data) > 5 * 1024 * 1024:
         raise HTTPException(status_code=400, detail="Файл больше 5 МБ")
-    MEDIA_ROOT.mkdir(parents=True, exist_ok=True)
-    ext = {
-        "image/jpeg": ".jpg",
-        "image/png": ".png",
-        "image/webp": ".webp",
-        "image/gif": ".gif",
-    }[content_type]
-    rel = f"tree-photos/{tree_id}_{person_id}_{uuid4().hex}{ext}"
-    dest = Path(__file__).resolve().parents[2] / "media" / rel
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    dest.write_bytes(data)
+    mime = require_image(data)
+    rel = f"tree-photos/{tree_id}_{person_id}_{uuid4().hex}{IMAGE_TYPES[mime]}"
+    write_media_bytes(rel, data)
     person.photo_path = rel
     touch_tree(tree)
     db.commit()
