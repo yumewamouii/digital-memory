@@ -1,12 +1,20 @@
 from datetime import date, datetime
 from typing import Literal
+from urllib.parse import urlparse
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
+
+from .services.partial_dates import normalize_partial_date
+
+
+def _coerce_partial_date(value: object) -> str | None:
+    if value is None or value == "":
+        return None
+    return normalize_partial_date(value if isinstance(value, (str, date)) else str(value))
 
 
 class UserCreate(BaseModel):
     email: EmailStr
-    full_name: str = Field(min_length=2, max_length=255)
     password: str = Field(min_length=8, max_length=128)
 
 
@@ -27,7 +35,7 @@ class UserOut(BaseModel):
     id: int
     email: EmailStr | None = None
     phone: str | None = None
-    full_name: str
+    full_name: str | None = None
     email_verified: bool = False
     phone_verified: bool = False
     has_password: bool = False
@@ -51,7 +59,6 @@ class PhoneRequestCode(BaseModel):
 class PhoneVerify(BaseModel):
     phone: str = Field(min_length=10, max_length=32)
     code: str = Field(min_length=4, max_length=12)
-    full_name: str | None = Field(default=None, min_length=2, max_length=255)
 
 
 class PasswordForgot(BaseModel):
@@ -101,16 +108,96 @@ class MessageResponse(BaseModel):
     message: str
 
 
+class MemorialRelativeOut(BaseModel):
+    role: str
+    name: str
+
+
+class MemorialExternalLink(BaseModel):
+    label: str = Field(min_length=1, max_length=120)
+    url: str = Field(min_length=1, max_length=1000)
+
+    @field_validator("url")
+    @classmethod
+    def only_http_https(cls, value: str) -> str:
+        url = (value or "").strip()
+        parsed = urlparse(url)
+        if parsed.scheme.lower() not in ("http", "https") or not parsed.netloc:
+            raise ValueError("Ссылка должна начинаться с http:// или https://")
+        return url
+
+
+class MemorialGalleryImageOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    url: str
+    caption: str | None = None
+    sort_order: int = 0
+
+
+class MemorialVideoOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    source: str
+    url: str
+    embed_url: str | None = None
+    title: str | None = None
+    sort_order: int = 0
+
+
+class MemorialVideoLinkCreate(BaseModel):
+    url: str = Field(min_length=1, max_length=1000)
+    title: str | None = Field(default=None, max_length=255)
+
+
+class MemorialAudioOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    url: str
+    title: str | None = None
+    sort_order: int = 0
+
+
+class MemorialDocumentOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    url: str
+    title: str | None = None
+    category: str = "other"
+    original_name: str | None = None
+    sort_order: int = 0
+
+
 class MemorialCardCreate(BaseModel):
     first_name: str
     last_name: str
     middle_name: str | None = None
     birth_date: date | None = None
     death_date: date | None = None
+    birth_place: str | None = None
+    birth_lat: float | None = None
+    birth_lng: float | None = None
+    death_place: str | None = None
+    death_lat: float | None = None
+    death_lng: float | None = None
+    life_status: Literal["unknown", "alive", "deceased"] | None = None
+    epitaph: str | None = None
+    short_description: str | None = Field(default=None, max_length=160)
+    relatives_text: str | None = None
     biography: str | None = None
     photo_url: str | None = None
     cemetery_name: str | None = None
     cemetery_location: str | None = None
+    cemetery_lat: float | None = None
+    cemetery_lng: float | None = None
+    page_kind: Literal["brief", "extended"] | None = None
+    guestbook_enabled: bool | None = None
+    metal_plaque: bool | None = None
+    external_links: list[MemorialExternalLink] | None = None
     visibility: Literal["private", "unlisted", "public"] | None = None
     status: Literal["draft", "published", "archived"] | None = None
     organization_id: int | None = None
@@ -123,10 +210,26 @@ class MemorialCardUpdate(BaseModel):
     middle_name: str | None = None
     birth_date: date | None = None
     death_date: date | None = None
+    birth_place: str | None = None
+    birth_lat: float | None = None
+    birth_lng: float | None = None
+    death_place: str | None = None
+    death_lat: float | None = None
+    death_lng: float | None = None
+    life_status: Literal["unknown", "alive", "deceased"] | None = None
+    epitaph: str | None = None
+    short_description: str | None = Field(default=None, max_length=160)
+    relatives_text: str | None = None
     biography: str | None = None
     photo_url: str | None = None
     cemetery_name: str | None = None
     cemetery_location: str | None = None
+    cemetery_lat: float | None = None
+    cemetery_lng: float | None = None
+    page_kind: Literal["brief", "extended"] | None = None
+    guestbook_enabled: bool | None = None
+    metal_plaque: bool | None = None
+    external_links: list[MemorialExternalLink] | None = None
     visibility: Literal["private", "unlisted", "public"] | None = None
     status: Literal["draft", "published", "archived"] | None = None
 
@@ -143,10 +246,30 @@ class MemorialCardOut(BaseModel):
     middle_name: str | None
     birth_date: date | None
     death_date: date | None
+    birth_place: str | None = None
+    birth_lat: float | None = None
+    birth_lng: float | None = None
+    death_place: str | None = None
+    death_lat: float | None = None
+    death_lng: float | None = None
+    life_status: str = "unknown"
+    epitaph: str | None = None
+    short_description: str | None = None
+    relatives_text: str | None = None
     biography: str | None
     photo_url: str | None
     cemetery_name: str | None
     cemetery_location: str | None
+    cemetery_lat: float | None = None
+    cemetery_lng: float | None = None
+    page_kind: str = "brief"
+    guestbook_enabled: bool = False
+    metal_plaque: bool = False
+    external_links: list[MemorialExternalLink] = []
+    gallery: list[MemorialGalleryImageOut] = []
+    videos: list[MemorialVideoOut] = []
+    audio: list[MemorialAudioOut] = []
+    documents: list[MemorialDocumentOut] = []
     visibility: str = "private"
     status: str = "published"
     deleted_at: datetime | None = None
@@ -156,6 +279,12 @@ class MemorialCardOut(BaseModel):
     can_delete: bool = False
     can_transfer: bool = False
     can_assign_owner: bool = False
+    # Link back to genealogical tree when this memorial is tied to a tree person
+    family_tree_id: int | None = None
+    family_tree_title: str | None = None
+    tree_person_id: int | None = None
+    family_tree_can_edit: bool = False
+    relatives: list[MemorialRelativeOut] = []
 
 
 class MemorialTransferRequest(BaseModel):
@@ -213,13 +342,26 @@ class PersonCreate(BaseModel):
     last_name: str = ""
     middle_name: str = ""
     gender: str = ""
-    birth_date: date | None = None
-    death_date: date | None = None
+    birth_date: str | None = None
+    death_date: str | None = None
     birth_place: str | None = None
+    birth_lat: float | None = None
+    birth_lng: float | None = None
     death_place: str | None = None
+    death_lat: float | None = None
+    death_lng: float | None = None
+    burial_place: str | None = None
+    burial_lat: float | None = None
+    burial_lng: float | None = None
     note: str | None = None
-    is_deceased: bool = False
+    life_status: Literal["unknown", "alive", "deceased"] | None = None
+    is_deceased: bool | None = None
     alt_names: list[AltNameIn] = []
+
+    @field_validator("birth_date", "death_date", mode="before")
+    @classmethod
+    def _validate_partial_dates(cls, value: object) -> str | None:
+        return _coerce_partial_date(value)
 
 
 class PersonUpdate(BaseModel):
@@ -227,15 +369,28 @@ class PersonUpdate(BaseModel):
     last_name: str | None = None
     middle_name: str | None = None
     gender: str | None = None
-    birth_date: date | None = None
-    death_date: date | None = None
+    birth_date: str | None = None
+    death_date: str | None = None
     birth_place: str | None = None
+    birth_lat: float | None = None
+    birth_lng: float | None = None
     death_place: str | None = None
+    death_lat: float | None = None
+    death_lng: float | None = None
+    burial_place: str | None = None
+    burial_lat: float | None = None
+    burial_lng: float | None = None
     note: str | None = None
+    life_status: Literal["unknown", "alive", "deceased"] | None = None
     is_deceased: bool | None = None
     x: float | None = None
     y: float | None = None
     alt_names: list[AltNameIn] | None = None
+
+    @field_validator("birth_date", "death_date", mode="before")
+    @classmethod
+    def _validate_partial_dates(cls, value: object) -> str | None:
+        return _coerce_partial_date(value)
 
 
 class RelativeCreate(BaseModel):
