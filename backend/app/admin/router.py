@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from ..audit.service import log_action
 from ..database import get_db
-from ..domain.enums import PermissionCode
+from ..domain.enums import PermissionCode, RoleCode
 from ..models import AuditLog, Organization, Permission, Role, User
 from ..rbac import service as rbac_service
 from ..rbac.deps import require_permission
@@ -83,7 +83,6 @@ def list_users(
         like = f"%{q.strip()}%"
         query = query.filter(
             (User.email.ilike(like))
-            | (User.full_name.ilike(like))
             | (User.phone.ilike(like))
         )
     users = query.limit(limit).all()
@@ -110,6 +109,13 @@ def update_user(
             db, current_user, PermissionCode.ROLE_MANAGE
         ):
             raise HTTPException(status_code=403, detail="Нет права управлять ролями")
+        requested = {str(r) for r in payload.roles}
+        actor_roles = set(rbac_service.get_user_role_codes(db, current_user))
+        if RoleCode.SUPER_ADMIN in requested and RoleCode.SUPER_ADMIN not in actor_roles:
+            raise HTTPException(
+                status_code=403,
+                detail="Назначать super_admin может только super_admin",
+            )
         try:
             rbac_service.set_user_roles(db, user, payload.roles)
         except ValueError as exc:
