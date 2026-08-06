@@ -64,16 +64,24 @@ def _find_or_link_oauth_user(db: Session, profile: oauth_providers.OAuthProfile)
     if profile.email:
         user = db.query(User).filter(User.email == profile.email).first()
         if user:
+            # Never auto-link on unverified OAuth emails (account takeover risk).
+            if not profile.email_verified:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        "Email от соцсети не подтверждён. Войдите паролем "
+                        "или подтвердите email у провайдера."
+                    ),
+                )
             setattr(user, f"{profile.provider}_id", profile.provider_user_id)
-            if profile.email_verified:
-                user.email_verified = True
+            user.email_verified = True
             db.commit()
             db.refresh(user)
             return user
 
     user = User(
         email=profile.email,
-        full_name=profile.full_name,
+        full_name=None,
         password_hash=None,
         email_verified=profile.email_verified if profile.email else False,
         **{f"{profile.provider}_id": profile.provider_user_id},
@@ -97,7 +105,7 @@ def register_user(payload: UserCreate, db: Session = Depends(get_db)):
 
     user = User(
         email=payload.email,
-        full_name=payload.full_name,
+        full_name=None,
         password_hash=get_password_hash(payload.password),
         email_verified=False,
     )
@@ -111,16 +119,13 @@ def register_user(payload: UserCreate, db: Session = Depends(get_db)):
 
 @router.post("/login", response_model=TokenResponse)
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    # Uniform error text to avoid email / auth-method enumeration.
+    invalid = HTTPException(status_code=401, detail="Неверный email или пароль")
     user = db.query(User).filter(User.email == form_data.username).first()
-    if not user:
-        raise HTTPException(status_code=401, detail="Пользователь с таким email не найден")
-    if not user.password_hash:
-        raise HTTPException(
-            status_code=401,
-            detail="Для этого аккаунта не задан пароль. Войдите через соцсеть или восстановите пароль",
-        )
+    if not user or not user.password_hash:
+        raise invalid
     if not verify_password(form_data.password, user.password_hash):
-        raise HTTPException(status_code=401, detail="Неверный пароль")
+        raise invalid
     if not user.is_active:
         raise HTTPException(status_code=403, detail="Аккаунт деактивирован")
 
@@ -173,17 +178,17 @@ def phone_verify(payload: PhoneVerify, db: Session = Depends(get_db)):
 
     if existing:
         verify_code(db, purpose=PURPOSE_PHONE_LOGIN, target=phone, code=payload.code, user_id=existing.id)
+        if not existing.is_active:
+            raise HTTPException(status_code=403, detail="Аккаунт деактивирован")
         existing.phone_verified = True
         db.commit()
         return _token_for_user(existing)
 
     verify_code(db, purpose=PURPOSE_PHONE_REGISTER, target=phone, code=payload.code)
-    if not payload.full_name or len(payload.full_name.strip()) < 2:
-        raise HTTPException(status_code=400, detail="Укажите ФИО для регистрации")
 
     user = User(
         phone=phone,
-        full_name=payload.full_name.strip(),
+        full_name=None,
         password_hash=None,
         phone_verified=True,
     )

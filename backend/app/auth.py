@@ -61,15 +61,16 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     user = db.query(User).filter(User.id == int(user_id)).first()
     if user is None:
         raise credentials_exception
-    return user
-
-
-def get_current_active_user(user: User = Depends(get_current_user)) -> User:
     if not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Аккаунт деактивирован",
         )
+    return user
+
+
+def get_current_active_user(user: User = Depends(get_current_user)) -> User:
+    # is_active is already enforced in get_current_user; kept for explicit deps.
     return user
 
 

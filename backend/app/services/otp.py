@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import hmac
 import re
 import secrets
 from datetime import datetime, timedelta, timezone
@@ -135,7 +136,7 @@ def verify_code(
     if auth_code.attempts >= OTP_MAX_ATTEMPTS:
         raise HTTPException(status_code=400, detail="Превышено число попыток ввода кода")
 
-    if hash_code(code) != auth_code.code_hash:
+    if not hmac.compare_digest(hash_code(code), auth_code.code_hash):
         auth_code.attempts += 1
         db.commit()
         raise HTTPException(status_code=400, detail="Неверный код")
