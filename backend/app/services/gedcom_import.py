@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from datetime import date, datetime
 from pathlib import Path
 
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from ..models import FamilyTree, TreeFamily, TreeFamilyChild, TreePerson
+from .partial_dates import parse_gedcom_partial_date
 from .tree_layout import auto_layout_tree, ensure_layout
 
 
@@ -68,44 +69,6 @@ def _find_children(record: GedcomRecord, tag: str) -> list[GedcomRecord]:
     return [child for child in record.children if child.tag == tag]
 
 
-def _parse_gedcom_date(value: str) -> date | None:
-    if not value:
-        return None
-    raw = value.strip().upper()
-    raw = re.sub(r"^(ABT|ABOUT|CIRCA|EST|CAL|BEF|AFT|BET)\s+", "", raw)
-    raw = raw.split(" AND ")[0].strip()
-    months = {
-        "JAN": 1,
-        "FEB": 2,
-        "MAR": 3,
-        "APR": 4,
-        "MAY": 5,
-        "JUN": 6,
-        "JUL": 7,
-        "AUG": 8,
-        "SEP": 9,
-        "OCT": 10,
-        "NOV": 11,
-        "DEC": 12,
-    }
-    m = re.match(r"^(?:(\d{1,2})\s+)?([A-Z]{3})\s+(\d{3,4})$", raw)
-    if m:
-        day = int(m.group(1) or 1)
-        month = months.get(m.group(2), 1)
-        year = int(m.group(3))
-        try:
-            return date(year, month, day)
-        except ValueError:
-            return date(year, 1, 1)
-    m = re.match(r"^(\d{3,4})$", raw)
-    if m:
-        return date(int(m.group(1)), 1, 1)
-    try:
-        return datetime.strptime(raw, "%Y-%m-%d").date()
-    except ValueError:
-        return None
-
-
 def _name_parts(name_value: str) -> tuple[str, str, str]:
     # GEDCOM: First /Last/ Middle
     match = re.match(r"^(.*?)\s*/([^/]*)/\s*(.*)$", name_value.strip())
@@ -132,6 +95,13 @@ def import_gedcom_into_tree(
     individuals = [r for r in roots if r.tag == "INDI"]
     families = [r for r in roots if r.tag == "FAM"]
 
+    GEDCOM_MAX_PERSONS = 2000
+    if len(individuals) > GEDCOM_MAX_PERSONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"В файле {len(individuals)} человек. Лимит импорта — {GEDCOM_MAX_PERSONS}.",
+        )
+
     xref_to_person: dict[str, TreePerson] = {}
     warnings: list[str] = []
 
@@ -145,18 +115,23 @@ def import_gedcom_into_tree(
         birth_place = None
         death_date = None
         death_place = None
+        burial_place = None
         birt = _find_child(indi, "BIRT")
         if birt:
             date_rec = _find_child(birt, "DATE")
             plac_rec = _find_child(birt, "PLAC")
-            birth_date = _parse_gedcom_date(date_rec.value if date_rec else "")
+            birth_date = parse_gedcom_partial_date(date_rec.value if date_rec else "")
             birth_place = plac_rec.value if plac_rec else None
         deat = _find_child(indi, "DEAT")
         if deat:
             date_rec = _find_child(deat, "DATE")
             plac_rec = _find_child(deat, "PLAC")
-            death_date = _parse_gedcom_date(date_rec.value if date_rec else "")
+            death_date = parse_gedcom_partial_date(date_rec.value if date_rec else "")
             death_place = plac_rec.value if plac_rec else None
+        buri = _find_child(indi, "BURI")
+        if buri:
+            plac_rec = _find_child(buri, "PLAC")
+            burial_place = plac_rec.value if plac_rec else None
 
         note_rec = _find_child(indi, "NOTE")
         person = TreePerson(
@@ -169,8 +144,10 @@ def import_gedcom_into_tree(
             death_date=death_date,
             birth_place=(birth_place or None),
             death_place=(death_place or None),
+            burial_place=(burial_place or None),
             note=note_rec.value if note_rec else None,
-            is_deceased=bool(death_date or deat),
+            is_deceased=bool(death_date or deat or buri),
+            life_status="deceased" if (death_date or deat or buri) else "unknown",
         )
         db.add(person)
         db.flush()

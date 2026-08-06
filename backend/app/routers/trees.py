@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from ..auth import get_current_user, get_current_user_optional
 from ..database import get_db
-from ..models import FamilyTree, TreeCollaborator, TreePerson, User
+from ..models import FamilyTree, MemorialCard, TreeCollaborator, TreePerson, User
 from ..schemas import (
     CollaboratorInvite,
     FamilyTreeCreate,
@@ -19,11 +19,13 @@ from ..schemas import (
     RelativeCreate,
 )
 from ..services.gedcom_import import import_gedcom_into_tree
-from ..domain.enums import PermissionCode, TreeAccessLevel
+from ..domain.enums import MemorialStatus, MemorialVisibility, PermissionCode, TreeAccessLevel
 from ..rbac import service as rbac_service
+from ..services.partial_dates import normalize_partial_date, partial_date_to_full
 from ..services.tree_access import (
     can_edit_tree,
     can_manage_tree_access,
+    can_view_via_share_slug,
     new_guest_token,
     new_invite_token,
     new_share_slug,
@@ -38,6 +40,7 @@ from ..services.tree_ops import (
     create_person,
     delete_person,
     replace_alt_names,
+    resolve_life_status,
     touch_tree,
 )
 from ..services.tree_serialize import load_tree, tree_detail_dict, tree_summary_dict
@@ -200,9 +203,13 @@ async def import_gedcom(
     current_user: User | None = Depends(get_current_user_optional),
     guest_token: str | None = Depends(_guest),
 ):
-    content = await file.read()
+    # Cap before parsing: unbounded GEDCOM can exhaust memory / fill DB.
+    GEDCOM_MAX_BYTES = 5 * 1024 * 1024
+    content = await file.read(GEDCOM_MAX_BYTES + 1)
     if not content:
         raise HTTPException(status_code=400, detail="Пустой файл")
+    if len(content) > GEDCOM_MAX_BYTES:
+        raise HTTPException(status_code=400, detail="Файл GEDCOM больше 5 МБ")
     token = guest_token or (new_guest_token() if not current_user else None)
     tree = FamilyTree(
         owner_id=current_user.id if current_user else None,
@@ -252,8 +259,11 @@ def get_by_slug(
     if not tree:
         raise HTTPException(status_code=404, detail="Древо не найдено")
     tree = load_tree(db, tree.id)
-    require_tree_view(db, tree, current_user, guest_token)
+    if not can_view_via_share_slug(db, tree, current_user, guest_token):
+        raise HTTPException(status_code=404, detail="Древо не найдено")
     level = resolve_tree_access_level(db, tree, current_user, guest_token)
+    if level is None and tree.visibility in ("link", "public"):
+        level = TreeAccessLevel.VIEWER
     can_edit = can_edit_tree(db, tree, current_user, guest_token)
     return tree_detail_dict(
         tree,
@@ -345,8 +355,16 @@ def create_tree_person(
         birth_date=payload.birth_date,
         death_date=payload.death_date,
         birth_place=payload.birth_place,
+        birth_lat=payload.birth_lat,
+        birth_lng=payload.birth_lng,
         death_place=payload.death_place,
+        death_lat=payload.death_lat,
+        death_lng=payload.death_lng,
+        burial_place=payload.burial_place,
+        burial_lat=payload.burial_lat,
+        burial_lng=payload.burial_lng,
         note=payload.note,
+        life_status=payload.life_status,
         is_deceased=payload.is_deceased,
     )
     if payload.alt_names:
@@ -374,8 +392,29 @@ def update_tree_person(
     alt_names = data.pop("alt_names", None)
     x = data.pop("x", None)
     y = data.pop("y", None)
+    life_status_in = data.pop("life_status", None)
+    is_deceased_in = data.pop("is_deceased", None)
     for key, value in data.items():
+        if key in ("birth_date", "death_date") and value is not None:
+            value = normalize_partial_date(value) if value else None
         setattr(person, key, value)
+    death = person.death_date
+    status = resolve_life_status(
+        life_status=life_status_in,
+        is_deceased=is_deceased_in,
+        death_date=death,
+        previous=getattr(person, "life_status", None),
+    )
+    person.life_status = status
+    person.is_deceased = status == "deceased"
+    if status != "deceased":
+        person.death_date = None
+        person.burial_place = None
+        person.burial_lat = None
+        person.burial_lng = None
+        person.death_place = None
+        person.death_lat = None
+        person.death_lng = None
     if alt_names is not None:
         replace_alt_names(db, person, alt_names)
     if x is not None or y is not None:
@@ -434,6 +473,8 @@ def create_relative(
         )
     except HTTPException:
         raise
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     db.commit()
     tree = load_tree(db, tree.id)
     detail = tree_detail_dict(tree, can_edit=True)
@@ -519,6 +560,66 @@ async def upload_photo(
     return tree_detail_dict(tree, can_edit=True)
 
 
+@router.post("/{tree_id}/persons/{person_id}/memorial", status_code=status.HTTP_201_CREATED)
+def create_person_memorial(
+    tree_id: int,
+    person_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Create a memorial page from a tree person (or return existing link)."""
+    tree = _get_tree_or_404(db, tree_id)
+    require_tree_edit(db, tree, current_user, None)
+    person = db.query(TreePerson).filter(TreePerson.id == person_id, TreePerson.tree_id == tree_id).first()
+    if not person:
+        raise HTTPException(status_code=404, detail="Человек не найден")
+
+    if person.memorial_card_id:
+        tree = load_tree(db, tree.id)
+        detail = tree_detail_dict(tree, can_edit=True)
+        detail["memorial_card_id"] = person.memorial_card_id
+        return detail
+
+    if not rbac_service.user_has_permission(db, current_user, PermissionCode.MEMORIAL_CREATE):
+        raise HTTPException(status_code=403, detail="Нет права создавать страницы памяти")
+
+    first = (person.first_name or "").strip() or "Без имени"
+    last = (person.last_name or "").strip() or "—"
+    photo_url = f"/media/{person.photo_path}" if person.photo_path else None
+
+    card = MemorialCard(
+        owner_id=current_user.id,
+        created_by=current_user.id,
+        first_name=first[:120],
+        last_name=last[:120],
+        middle_name=(person.middle_name or None),
+        birth_date=partial_date_to_full(person.birth_date),
+        death_date=partial_date_to_full(person.death_date),
+        birth_place=person.birth_place,
+        birth_lat=person.birth_lat,
+        birth_lng=person.birth_lng,
+        death_place=person.death_place,
+        death_lat=person.death_lat,
+        death_lng=person.death_lng,
+        photo_url=photo_url,
+        cemetery_name=(person.burial_place or None),
+        cemetery_location=(person.burial_place or None),
+        cemetery_lat=person.burial_lat,
+        cemetery_lng=person.burial_lng,
+        visibility=MemorialVisibility.PRIVATE,
+        status=MemorialStatus.PUBLISHED,
+    )
+    db.add(card)
+    db.flush()
+    person.memorial_card_id = card.id
+    touch_tree(tree)
+    db.commit()
+    tree = load_tree(db, tree.id)
+    detail = tree_detail_dict(tree, can_edit=True)
+    detail["memorial_card_id"] = card.id
+    return detail
+
+
 @router.get("/{tree_id}/collaborators")
 def list_collaborators(
     tree_id: int,
@@ -529,6 +630,7 @@ def list_collaborators(
     if not can_manage_tree_access(db, tree, current_user):
         raise HTTPException(status_code=403, detail="Нет права управлять доступом")
     rows = db.query(TreeCollaborator).filter(TreeCollaborator.tree_id == tree_id).all()
+    # Never expose invite_token in list responses (one-time link only on create).
     return [
         {
             "id": r.id,
@@ -536,7 +638,6 @@ def list_collaborators(
             "user_id": r.user_id,
             "role": r.role,
             "status": r.status,
-            "invite_token": r.invite_token,
             "access_level": r.role,
         }
         for r in rows
@@ -560,13 +661,14 @@ def invite_collaborator(
             raise HTTPException(status_code=403, detail="Нет права приглашать")
     email = str(payload.email).lower()
     existing_user = db.query(User).filter(User.email == email).first()
+    # Always pending until /invites/.../accept — auto-accept was privilege escalation.
     row = TreeCollaborator(
         tree_id=tree.id,
         user_id=existing_user.id if existing_user else None,
         email=email,
         role=payload.role,
         invite_token=new_invite_token(),
-        status="accepted" if existing_user else "pending",
+        status="pending",
     )
     db.add(row)
     db.commit()

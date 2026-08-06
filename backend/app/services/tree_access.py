@@ -65,8 +65,10 @@ def resolve_tree_access_level(
 
     if tree.is_demo_template:
         return TreeAccessLevel.VIEWER
-    if tree.visibility in ("link", "public"):
+    if tree.visibility == "public":
         return TreeAccessLevel.VIEWER
+    # visibility=link is intentionally omitted here: access is via share slug only
+    # (see require_tree_view / get_by_slug), not enumerable numeric IDs.
     return None
 
 
@@ -76,17 +78,23 @@ def can_view_tree(
     guest_token: str | None = None,
     db: Session | None = None,
 ) -> bool:
-    if db is not None:
-        return resolve_tree_access_level(db, tree, user, guest_token) is not None
-    if tree.is_demo_template:
+    if db is None:
+        # Without db, collaborator / RBAC checks are unavailable — refuse rather than
+        # over-granting via a weaker visibility fallback.
+        return False
+    return resolve_tree_access_level(db, tree, user, guest_token) is not None
+
+
+def can_view_via_share_slug(
+    db: Session,
+    tree: FamilyTree,
+    user: User | None = None,
+    guest_token: str | None = None,
+) -> bool:
+    """Link/public trees are viewable when opened by unguessable share slug."""
+    if resolve_tree_access_level(db, tree, user, guest_token) is not None:
         return True
-    if user and tree.owner_id and tree.owner_id == user.id:
-        return True
-    if guest_token and tree.guest_token and tree.guest_token == guest_token:
-        return True
-    if tree.visibility in ("link", "public"):
-        return True
-    return False
+    return tree.visibility in ("link", "public")
 
 
 def can_edit_tree(
