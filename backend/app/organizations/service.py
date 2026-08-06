@@ -302,10 +302,9 @@ def invite_employee(
         )
         db.add(member)
 
-    # Align invitee role unless super_admin
-    codes = set(rbac_service.get_user_role_codes(db, invitee))
-    if RoleCode.SUPER_ADMIN not in codes:
-        rbac_service.set_user_roles(db, invitee, [RoleCode.PARTNER_EMPLOYEE])
+    # Additive grant — never wipe existing roles (user, partner of another org, etc.)
+    rbac_service.ensure_user_has_role(db, invitee, RoleCode.USER)
+    rbac_service.ensure_user_has_role(db, invitee, RoleCode.PARTNER_EMPLOYEE)
 
     log_action(
         db,

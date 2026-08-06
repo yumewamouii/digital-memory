@@ -110,10 +110,7 @@ def get_active_organization_membership(
 
 
 def sync_org_role(db: Session, user: User, member_role: str) -> None:
-    """Align global RBAC role with organization membership role."""
+    """Grant org-aligned RBAC role without wiping existing roles (e.g. user)."""
     target = RoleCode.PARTNER if member_role == "owner" else RoleCode.PARTNER_EMPLOYEE
-    current = set(get_user_role_codes(db, user))
-    new_roles = [target]
-    if RoleCode.SUPER_ADMIN in current:
-        new_roles.append(RoleCode.SUPER_ADMIN)
-    set_user_roles(db, user, new_roles)
+    ensure_user_has_role(db, user, RoleCode.USER)
+    ensure_user_has_role(db, user, target)

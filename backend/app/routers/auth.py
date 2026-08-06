@@ -2,12 +2,14 @@ from __future__ import annotations
 
 from urllib.parse import urlencode
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from fastapi.responses import RedirectResponse
 from fastapi.security import OAuth2PasswordRequestForm
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from ..auth import create_access_token, get_current_user, get_password_hash, verify_password
+from ..services.auth_cookies import clear_auth_cookie, set_auth_cookie
 from ..config import get_settings
 from ..database import get_db
 from ..domain.enums import RoleCode
@@ -46,8 +48,15 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 settings = get_settings()
 
 
-def _token_for_user(user: User) -> TokenResponse:
-    return TokenResponse(access_token=create_access_token(subject=str(user.id)))
+def _token_for_user(user: User, response: Response | None = None) -> TokenResponse:
+    token = create_access_token(subject=str(user.id))
+    if response is not None:
+        set_auth_cookie(response, token)
+    return TokenResponse(access_token=token)
+
+
+class SessionFromToken(BaseModel):
+    access_token: str = Field(min_length=10)
 
 
 def _find_or_link_oauth_user(db: Session, profile: oauth_providers.OAuthProfile) -> User:
@@ -118,7 +127,11 @@ def register_user(payload: UserCreate, db: Session = Depends(get_db)):
 
 
 @router.post("/login", response_model=TokenResponse)
-def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+def login(
+    response: Response,
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: Session = Depends(get_db),
+):
     # Uniform error text to avoid email / auth-method enumeration.
     invalid = HTTPException(status_code=401, detail="Неверный email или пароль")
     user = db.query(User).filter(User.email == form_data.username).first()
@@ -129,7 +142,20 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
     if not user.is_active:
         raise HTTPException(status_code=403, detail="Аккаунт деактивирован")
 
-    return _token_for_user(user)
+    return _token_for_user(user, response)
+
+
+@router.post("/session", response_model=TokenResponse)
+def establish_session(payload: SessionFromToken, response: Response, db: Session = Depends(get_db)):
+    """Exchange a one-time bearer (e.g. OAuth hash) for an httpOnly cookie session."""
+    user = get_current_user(bearer=payload.access_token, cookie_token=None, db=db)
+    return _token_for_user(user, response)
+
+
+@router.post("/logout", response_model=MessageResponse)
+def logout(response: Response):
+    clear_auth_cookie(response)
+    return MessageResponse(message="Вы вышли из аккаунта")
 
 
 @router.get("/me", response_model=UserOut)
@@ -172,7 +198,11 @@ def phone_request_code(payload: PhoneRequestCode, db: Session = Depends(get_db))
 
 
 @router.post("/phone/verify", response_model=TokenResponse)
-def phone_verify(payload: PhoneVerify, db: Session = Depends(get_db)):
+def phone_verify(
+    payload: PhoneVerify,
+    response: Response,
+    db: Session = Depends(get_db),
+):
     phone = normalize_phone(payload.phone)
     existing = db.query(User).filter(User.phone == phone).first()
 
@@ -182,7 +212,7 @@ def phone_verify(payload: PhoneVerify, db: Session = Depends(get_db)):
             raise HTTPException(status_code=403, detail="Аккаунт деактивирован")
         existing.phone_verified = True
         db.commit()
-        return _token_for_user(existing)
+        return _token_for_user(existing, response)
 
     verify_code(db, purpose=PURPOSE_PHONE_REGISTER, target=phone, code=payload.code)
 
@@ -197,7 +227,7 @@ def phone_verify(payload: PhoneVerify, db: Session = Depends(get_db)):
     assign_role_if_missing(db, user, RoleCode.USER)
     db.commit()
     db.refresh(user)
-    return _token_for_user(user)
+    return _token_for_user(user, response)
 
 
 @router.post("/password/forgot", response_model=MessageResponse)
@@ -353,7 +383,13 @@ async def oauth_callback(
         profile = await oauth_providers.exchange_code(provider, code)
         user = _find_or_link_oauth_user(db, profile)
         token = create_access_token(subject=str(user.id))
-        return RedirectResponse(f"{frontend}/auth/callback#{urlencode({'token': token})}")
+        # Prefer httpOnly cookie; keep hash token briefly for SPA session bootstrap.
+        redirect = RedirectResponse(
+            f"{frontend}/auth/callback#{urlencode({'token': token})}",
+            status_code=302,
+        )
+        set_auth_cookie(redirect, token)
+        return redirect
     except HTTPException as exc:
         detail = exc.detail if isinstance(exc.detail, str) else "oauth_error"
         return RedirectResponse(f"{frontend}/auth/callback?{urlencode({'error': detail})}")

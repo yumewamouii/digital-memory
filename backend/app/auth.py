@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta, timezone
 import hashlib
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Cookie, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from .config import get_settings
 from .database import get_db
 from .models import User
+from .services.auth_cookies import COOKIE_NAME
 
 settings = get_settings()
 SECRET_KEY = settings.secret_key
@@ -17,7 +18,7 @@ ALGORITHM = settings.algorithm
 ACCESS_TOKEN_EXPIRE_MINUTES = settings.access_token_expire_minutes
 
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=False)
 oauth2_scheme_optional = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=False)
 
 
@@ -43,7 +44,7 @@ def create_access_token(subject: str, expires_delta: timedelta | None = None) ->
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 
-def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> User:
+def _user_from_token(token: str, db: Session) -> User:
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -69,21 +70,42 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     return user
 
 
+def _extract_token(
+    bearer: str | None,
+    cookie_token: str | None,
+) -> str | None:
+    return bearer or cookie_token or None
+
+
+def get_current_user(
+    bearer: str | None = Depends(oauth2_scheme),
+    cookie_token: str | None = Cookie(default=None, alias=COOKIE_NAME),
+    db: Session = Depends(get_db),
+) -> User:
+    token = _extract_token(bearer, cookie_token)
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return _user_from_token(token, db)
+
+
 def get_current_active_user(user: User = Depends(get_current_user)) -> User:
     # is_active is already enforced in get_current_user; kept for explicit deps.
     return user
 
 
 def get_current_user_optional(
-    token: str | None = Depends(oauth2_scheme_optional),
+    bearer: str | None = Depends(oauth2_scheme_optional),
+    cookie_token: str | None = Cookie(default=None, alias=COOKIE_NAME),
     db: Session = Depends(get_db),
 ) -> User | None:
+    token = _extract_token(bearer, cookie_token)
     if not token:
         return None
     try:
-        user = get_current_user(token=token, db=db)
-        if not user.is_active:
-            return None
-        return user
+        return _user_from_token(token, db)
     except HTTPException:
         return None

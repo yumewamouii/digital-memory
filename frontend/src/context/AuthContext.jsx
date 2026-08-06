@@ -84,7 +84,10 @@ export function AuthProvider({ children }) {
   const applyToken = (accessToken) => {
     localStorage.setItem("token", accessToken);
     setToken(accessToken);
-    // Claim guest trees created before login; ignore if session already changed.
+    // Prefer httpOnly cookie session; keep bearer for older clients / cookie failures.
+    axios
+      .post(`${API}/auth/session`, { access_token: accessToken }, { withCredentials: true })
+      .catch(() => {});
     import("../api/trees")
       .then(({ claimGuestTrees }) => {
         if (localStorage.getItem("token") !== accessToken) return null;
@@ -94,12 +97,12 @@ export function AuthProvider({ children }) {
   };
 
   const loadMe = async (headers = authHeaders, { signal } = {}) => {
-    if (!headers.Authorization) {
-      setUser(null);
-      return null;
-    }
     try {
-      const { data } = await axios.get(`${API}/auth/me`, { headers, signal });
+      const { data } = await axios.get(`${API}/auth/me`, {
+        headers: headers.Authorization ? headers : {},
+        withCredentials: true,
+        signal,
+      });
       setUser(data);
       return data;
     } catch (error) {
@@ -117,16 +120,11 @@ export function AuthProvider({ children }) {
   };
 
   useEffect(() => {
-    if (!token) {
-      setUser(null);
-      return undefined;
-    }
     const controller = new AbortController();
-    loadMe({ Authorization: `Bearer ${token}` }, { signal: controller.signal }).catch(
-      () => {},
-    );
+    const headers = token ? { Authorization: `Bearer ${token}` } : {};
+    loadMe(headers, { signal: controller.signal }).catch(() => {});
     return () => controller.abort();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- reload only when token changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reload when token changes
   }, [token]);
 
   useEffect(() => {
@@ -287,6 +285,7 @@ export function AuthProvider({ children }) {
   };
 
   const logout = () => {
+    axios.post(`${API}/auth/logout`, {}, { withCredentials: true }).catch(() => {});
     clearSession();
     setMessage("Вы вышли из аккаунта");
   };
