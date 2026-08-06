@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 
 from fastapi import HTTPException, Request, status
 from sqlalchemy import or_
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from ..audit.service import log_action
 from ..domain.enums import ClaimStatus, MemorialStatus, MemorialVisibility, PermissionCode
@@ -36,6 +36,7 @@ from ..schemas import (
     MemorialRelativeOut,
     MemorialVideoOut,
 )
+from ..services.media_signing import sign_media_url
 from ..services.tree_access import can_edit_tree, resolve_tree_access_level
 from . import policies
 from .video_links import parse_video_url
@@ -252,6 +253,10 @@ def _clear_death_fields(target) -> None:
     target["cemetery_lng"] = None
 
 
+def _sign_media_field(url: str | None) -> str | None:
+    return sign_media_url(url) if url else None
+
+
 def enrich_card(db: Session, user: User | None, card: MemorialCard) -> MemorialCardOut:
     if getattr(card, "external_links", None) is None:
         card.external_links = []
@@ -260,6 +265,7 @@ def enrich_card(db: Session, user: User | None, card: MemorialCard) -> MemorialC
     data = MemorialCardOut.model_validate(card)
     tree_link = _family_tree_link(db, user, card)
     updates: dict = {**tree_link}
+    updates["photo_url"] = _sign_media_field(getattr(card, "photo_url", None))
 
     relatives: list[MemorialRelativeOut] = []
     person_id = tree_link.get("tree_person_id")
@@ -272,19 +278,27 @@ def enrich_card(db: Session, user: User | None, card: MemorialCard) -> MemorialC
     updates["relatives"] = relatives
     updates["external_links"] = _normalize_external_links(getattr(card, "external_links", None))
     updates["gallery"] = [
-        MemorialGalleryImageOut.model_validate(img)
+        MemorialGalleryImageOut.model_validate(img).model_copy(
+            update={"url": _sign_media_field(img.url) or img.url}
+        )
         for img in sorted(card.gallery_images or [], key=lambda g: (g.sort_order, g.id))
     ]
-    updates["videos"] = [
-        MemorialVideoOut.model_validate(vid)
-        for vid in sorted(card.videos or [], key=lambda v: (v.sort_order, v.id))
-    ]
+    updates["videos"] = []
+    for vid in sorted(card.videos or [], key=lambda v: (v.sort_order, v.id)):
+        out = MemorialVideoOut.model_validate(vid)
+        if getattr(vid, "source", None) == "file":
+            out = out.model_copy(update={"url": _sign_media_field(vid.url) or vid.url})
+        updates["videos"].append(out)
     updates["audio"] = [
-        MemorialAudioOut.model_validate(clip)
+        MemorialAudioOut.model_validate(clip).model_copy(
+            update={"url": _sign_media_field(clip.url) or clip.url}
+        )
         for clip in sorted(card.audio_clips or [], key=lambda a: (a.sort_order, a.id))
     ]
     updates["documents"] = [
-        MemorialDocumentOut.model_validate(doc)
+        MemorialDocumentOut.model_validate(doc).model_copy(
+            update={"url": _sign_media_field(doc.url) or doc.url}
+        )
         for doc in sorted(card.documents or [], key=lambda d: (d.sort_order, d.id))
     ]
     updates["page_kind"] = getattr(card, "page_kind", None) or "brief"
@@ -407,13 +421,26 @@ def create_card(
     return card
 
 
+def _cards_with_media(q):
+    return q.options(
+        joinedload(MemorialCard.gallery_images),
+        joinedload(MemorialCard.videos),
+        joinedload(MemorialCard.audio_clips),
+        joinedload(MemorialCard.documents),
+    )
+
+
 def list_accessible_cards(db: Session, user: User, *, include_deleted: bool = False) -> list[MemorialCard]:
     q = db.query(MemorialCard)
     if not include_deleted:
         q = q.filter(MemorialCard.deleted_at.is_(None))
 
     if rbac_service.user_has_permission(db, user, PermissionCode.MEMORIAL_READ_ANY):
-        return q.order_by(MemorialCard.created_at.desc()).all()
+        return (
+            _cards_with_media(q)
+            .order_by(MemorialCard.created_at.desc())
+            .all()
+        )
 
     org_ids = [
         m.organization_id
@@ -427,7 +454,11 @@ def list_accessible_cards(db: Session, user: User, *, include_deleted: bool = Fa
     clauses = [MemorialCard.owner_id == user.id]
     if org_ids:
         clauses.append(MemorialCard.organization_id.in_(org_ids))
-    return q.filter(or_(*clauses)).order_by(MemorialCard.created_at.desc()).all()
+    return (
+        _cards_with_media(q.filter(or_(*clauses)))
+        .order_by(MemorialCard.created_at.desc())
+        .all()
+    )
 
 
 def search_public_cards(
@@ -436,10 +467,12 @@ def search_public_cards(
     query: str | None = None,
     limit: int = 50,
 ) -> list[MemorialCard]:
-    q = db.query(MemorialCard).filter(
-        MemorialCard.deleted_at.is_(None),
-        MemorialCard.visibility == MemorialVisibility.PUBLIC,
-        MemorialCard.status == MemorialStatus.PUBLISHED,
+    q = _cards_with_media(
+        db.query(MemorialCard).filter(
+            MemorialCard.deleted_at.is_(None),
+            MemorialCard.visibility == MemorialVisibility.PUBLIC,
+            MemorialCard.status == MemorialStatus.PUBLISHED,
+        )
     )
     if query:
         like = f"%{query.strip()}%"
@@ -456,7 +489,7 @@ def search_public_cards(
 
 
 def get_card_or_404(db: Session, card_id: int, *, include_deleted: bool = False) -> MemorialCard:
-    q = db.query(MemorialCard).filter(MemorialCard.id == card_id)
+    q = _cards_with_media(db.query(MemorialCard).filter(MemorialCard.id == card_id))
     if not include_deleted:
         q = q.filter(MemorialCard.deleted_at.is_(None))
     card = q.first()

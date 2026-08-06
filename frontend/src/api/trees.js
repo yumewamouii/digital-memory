@@ -15,10 +15,11 @@ export function clearGuestToken() {
   localStorage.removeItem(GUEST_KEY);
 }
 
-function treeHeaders(authHeaders = {}) {
+function treeHeaders(authHeaders = {}, { updatedAt } = {}) {
   const headers = { ...authHeaders };
   const guest = getGuestToken();
   if (guest) headers["X-Guest-Token"] = guest;
+  if (updatedAt) headers["If-Match"] = String(updatedAt);
   return headers;
 }
 
@@ -70,9 +71,9 @@ export async function getTreeBySlug(slug, authHeaders = {}) {
   return data;
 }
 
-export async function updateTree(treeId, payload, authHeaders = {}) {
+export async function updateTree(treeId, payload, authHeaders = {}, { updatedAt } = {}) {
   const { data } = await axios.put(`${API}/family-trees/${treeId}`, payload, {
-    headers: treeHeaders(authHeaders),
+    headers: treeHeaders(authHeaders, { updatedAt }),
   });
   return data;
 }
@@ -90,11 +91,11 @@ export async function createPerson(treeId, payload, authHeaders = {}) {
   return data;
 }
 
-export async function updatePerson(treeId, personId, payload, authHeaders = {}) {
+export async function updatePerson(treeId, personId, payload, authHeaders = {}, { updatedAt } = {}) {
   const { data } = await axios.put(
     `${API}/family-trees/${treeId}/persons/${personId}`,
     payload,
-    { headers: treeHeaders(authHeaders) },
+    { headers: treeHeaders(authHeaders, { updatedAt }) },
   );
   return data;
 }
@@ -124,22 +125,28 @@ export async function autoLayout(treeId, authHeaders = {}) {
   return data;
 }
 
-export async function saveLayout(treeId, items, authHeaders = {}) {
+export async function saveLayout(treeId, items, authHeaders = {}, { updatedAt } = {}) {
   const { data } = await axios.post(
     `${API}/family-trees/${treeId}/layout`,
     { items },
-    { headers: treeHeaders(authHeaders) },
+    { headers: treeHeaders(authHeaders, { updatedAt }) },
   );
   return data;
 }
 
-export async function uploadPersonPhoto(treeId, personId, file, authHeaders = {}) {
+export async function uploadPersonPhoto(
+  treeId,
+  personId,
+  file,
+  authHeaders = {},
+  { updatedAt } = {},
+) {
   const form = new FormData();
   form.append("file", file);
   const { data } = await axios.post(
     `${API}/family-trees/${treeId}/persons/${personId}/photo`,
     form,
-    { headers: treeHeaders(authHeaders) },
+    { headers: treeHeaders(authHeaders, { updatedAt }) },
   );
   return data;
 }
@@ -218,6 +225,9 @@ export function mediaUrl(pathOrUrl) {
     }
   }
   const origin = API.replace(/\/api\/?$/, "");
-  if (value.startsWith("/media")) return `${origin}${value}`;
-  return `${origin}/media/${value.replace(/^\/+/, "")}`;
+  // Signed media: /api/media/...?exp=&sig=
+  if (value.startsWith("/api/media/")) return `${origin}${value}`;
+  if (value.startsWith("/media/")) return `${origin}${value}`;
+  if (value.startsWith("media/")) return `${origin}/${value}`;
+  return `${origin}/api/media/${value.replace(/^\/+/, "")}`;
 }

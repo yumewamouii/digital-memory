@@ -3,6 +3,7 @@ from __future__ import annotations
 from sqlalchemy.orm import Session, joinedload
 
 from ..models import FamilyTree, TreeFamily, TreePerson
+from .media_signing import sign_media_url
 from .partial_dates import normalize_partial_date
 
 
@@ -31,7 +32,7 @@ def person_to_dict(person: TreePerson) -> dict:
         "burial_lat": person.burial_lat,
         "burial_lng": person.burial_lng,
         "photo_path": person.photo_path,
-        "photo_url": f"/media/{person.photo_path}" if person.photo_path else None,
+        "photo_url": sign_media_url(f"/media/{person.photo_path}") if person.photo_path else None,
         "note": person.note,
         "life_status": getattr(person, "life_status", None)
         or ("deceased" if person.is_deceased or person.death_date else "unknown"),

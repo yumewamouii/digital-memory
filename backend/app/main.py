@@ -1,9 +1,7 @@
 import logging
-from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 
 from .admin.router import router as admin_router
 from .config import get_settings
@@ -11,9 +9,11 @@ from .database import engine
 from .memorials.router import router as memorials_router
 from .organizations.router import router as organizations_router
 from .routers import auth as auth_router
+from .routers import media as media_router
 from .routers import trees as trees_router
 from .schema_upgrade import upgrade_schema
 from .schemas import SiteMapResponse, SiteSection
+from .services.uploads import MEDIA_DIR
 
 logging.basicConfig(level=logging.INFO)
 
@@ -30,11 +30,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-MEDIA_DIR = Path(__file__).resolve().parents[1] / "media"
+# Media is served only via signed /api/media/... (no world-readable StaticFiles).
 MEDIA_DIR.mkdir(parents=True, exist_ok=True)
-app.mount("/media", StaticFiles(directory=str(MEDIA_DIR)), name="media")
 
 app.include_router(auth_router.router)
+app.include_router(media_router.router)
 app.include_router(trees_router.router)
 app.include_router(memorials_router)
 app.include_router(organizations_router)
