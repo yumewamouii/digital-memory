@@ -226,7 +226,7 @@ export default function PartnerCabinetPage() {
                 <ul className="cabinet-list">
                   {members.map((m) => (
                     <li key={m.id}>
-                      {m.full_name || m.email} — {m.member_role} ({m.status})
+                      {m.email || `user #${m.user_id}`} — {m.member_role} ({m.status})
                     </li>
                   ))}
                 </ul>

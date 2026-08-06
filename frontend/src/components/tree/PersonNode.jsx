@@ -1,10 +1,5 @@
 import { Handle, Position } from "@xyflow/react";
-import {
-  formatAgeLabel,
-  formatPersonYears,
-  personAge,
-  personInitials,
-} from "../../utils/treeRelations";
+import { formatPersonYears, personInitials } from "../../utils/treeRelations";
 import { mediaUrl } from "../../api/trees";
 import { PERSON_CARD } from "../../utils/treeCardLayout";
 
@@ -18,14 +13,7 @@ export default function PersonNode({ data, selected }) {
   const firstName = (data.firstName || "").trim();
   const middleName = (data.middleName || "").trim();
   const nameParts = [lastName, firstName, middleName].filter(Boolean);
-
-  const isDeceased = Boolean(data.isDeceased || data.deathYear);
-  const age = isDeceased
-    ? data.deathYear
-      ? personAge(data.birthYear, data.deathYear)
-      : null
-    : personAge(data.birthYear, null);
-  const ageLabel = formatAgeLabel(age);
+  const hasMemorial = Boolean(data.hasMemorial);
   const sideHandleStyle = { top: PERSON_CARD.sideHandleY };
 
   return (
@@ -72,8 +60,12 @@ export default function PersonNode({ data, selected }) {
             )}
           </div>
           {years ? <span className="person-node-years">{years}</span> : null}
-          {ageLabel ? <span className="person-node-age">{ageLabel}</span> : null}
         </div>
+        {hasMemorial ? (
+          <span className="person-node-memorial" title="Есть страница памяти" aria-label="Есть страница памяти">
+            Память
+          </span>
+        ) : null}
       </div>
     </div>
   );

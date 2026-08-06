@@ -1,12 +1,39 @@
 from __future__ import annotations
 
-from datetime import date
-
 from sqlalchemy.orm import Session
 
 from ..models import FamilyTree, TreeFamily, TreeFamilyChild, TreePerson, TreePersonName
+from .partial_dates import normalize_partial_date
 from .tree_access import assert_guest_person_limit
 from .tree_layout import auto_layout_tree, ensure_layout
+
+LIFE_STATUS_UNKNOWN = "unknown"
+LIFE_STATUS_ALIVE = "alive"
+LIFE_STATUS_DECEASED = "deceased"
+VALID_LIFE_STATUSES = {LIFE_STATUS_UNKNOWN, LIFE_STATUS_ALIVE, LIFE_STATUS_DECEASED}
+
+
+def resolve_life_status(
+    *,
+    life_status: str | None = None,
+    is_deceased: bool | None = None,
+    death_date: str | None = None,
+    previous: str | None = None,
+) -> str:
+    """Resolve life status. Death date always forces deceased."""
+    if death_date:
+        return LIFE_STATUS_DECEASED
+    if life_status in VALID_LIFE_STATUSES:
+        return life_status
+    if is_deceased is True:
+        return LIFE_STATUS_DECEASED
+    if is_deceased is False and previous == LIFE_STATUS_DECEASED:
+        return LIFE_STATUS_UNKNOWN
+    if is_deceased is False and previous in VALID_LIFE_STATUSES:
+        return previous if previous != LIFE_STATUS_DECEASED else LIFE_STATUS_UNKNOWN
+    if previous in VALID_LIFE_STATUSES:
+        return previous
+    return LIFE_STATUS_UNKNOWN
 
 
 def touch_tree(tree: FamilyTree) -> None:
@@ -23,29 +50,60 @@ def create_person(
     last_name: str = "",
     middle_name: str = "",
     gender: str = "",
-    birth_date: date | None = None,
-    death_date: date | None = None,
+    birth_date: str | None = None,
+    death_date: str | None = None,
     birth_place: str | None = None,
+    birth_lat: float | None = None,
+    birth_lng: float | None = None,
     death_place: str | None = None,
+    death_lat: float | None = None,
+    death_lng: float | None = None,
+    burial_place: str | None = None,
+    burial_lat: float | None = None,
+    burial_lng: float | None = None,
     note: str | None = None,
-    is_deceased: bool = False,
+    life_status: str | None = None,
+    is_deceased: bool | None = None,
     x: float = 0,
     y: float = 0,
     auto_layout: bool = True,
 ) -> TreePerson:
     assert_guest_person_limit(db, tree)
+    birth = normalize_partial_date(birth_date) if birth_date else None
+    death = normalize_partial_date(death_date) if death_date else None
+    status = resolve_life_status(
+        life_status=life_status,
+        is_deceased=is_deceased,
+        death_date=death,
+    )
+    if status != LIFE_STATUS_DECEASED:
+        death = None
+        burial_place = None
+        burial_lat = None
+        burial_lng = None
+        death_place = None
+        death_lat = None
+        death_lng = None
     person = TreePerson(
         tree_id=tree.id,
         first_name=first_name or "",
         last_name=last_name or "",
         middle_name=middle_name or "",
         gender=gender or "",
-        birth_date=birth_date,
-        death_date=death_date,
+        birth_date=birth,
+        death_date=death,
         birth_place=birth_place,
+        birth_lat=birth_lat,
+        birth_lng=birth_lng,
         death_place=death_place,
+        death_lat=death_lat,
+        death_lng=death_lng,
+        burial_place=burial_place,
+        burial_lat=burial_lat,
+        burial_lng=burial_lng,
         note=note,
-        is_deceased=is_deceased or bool(death_date),
+        life_status=status,
+        is_deceased=status == LIFE_STATUS_DECEASED,
     )
     db.add(person)
     db.flush()

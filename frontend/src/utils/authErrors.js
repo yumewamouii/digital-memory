@@ -13,10 +13,6 @@ const FIELD_MESSAGES = {
     string_too_short: "Пароль должен содержать не менее 8 символов",
     string_too_long: "Пароль слишком длинный",
   },
-  full_name: {
-    string_too_short: "ФИО должно содержать не менее 2 символов",
-    string_too_long: "ФИО слишком длинное",
-  },
 };
 
 function mapValidationError(item) {
@@ -31,9 +27,6 @@ function mapValidationError(item) {
   }
   if (field === "password") {
     return "Пароль должен содержать не менее 8 символов";
-  }
-  if (field === "full_name") {
-    return "ФИО должно содержать не менее 2 символов";
   }
 
   return item.msg || "Проверьте правильность введённых данных";
@@ -57,15 +50,9 @@ export function getAuthErrorMessage(error, fallback) {
   return fallback;
 }
 
-export function validateRegisterForm({ email, password, full_name }) {
+export function validateRegisterForm({ email, password }) {
   if (!email.trim()) {
     return "Укажите почту";
-  }
-  if (!full_name.trim()) {
-    return "Укажите ФИО";
-  }
-  if (full_name.trim().length < 2) {
-    return "ФИО должно содержать не менее 2 символов";
   }
   if (!password) {
     return "Укажите пароль";

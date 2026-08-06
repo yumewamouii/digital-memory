@@ -274,10 +274,10 @@ export default function Header() {
               </button>
               {accountOpen && (
                 <div className="account-dropdown" role="menu">
-                  {(user?.full_name || user?.email) && (
+                  {(user?.email || user?.phone) && (
                     <div className="account-dropdown-meta">
-                      {user?.full_name && <strong>{user.full_name}</strong>}
-                      {user?.email && <span>{user.email}</span>}
+                      {user?.email && <strong>{user.email}</strong>}
+                      {!user?.email && user?.phone && <strong>{user.phone}</strong>}
                     </div>
                   )}
                   <button
@@ -332,30 +332,15 @@ export default function Header() {
               )}
             </div>
           ) : (
-            <>
-              <button
-                type="button"
-                className="btn btn-ghost btn-sm header-auth-text"
-                onClick={() => openAuthModal(false)}
-              >
-                Войти
-              </button>
-              <button
-                type="button"
-                className="btn btn-outline btn-sm header-auth-text"
-                onClick={() => openAuthModal(true)}
-              >
-                Регистрация
-              </button>
-              <button
-                type="button"
-                className="auth-icon"
-                onClick={() => openAuthModal(false)}
-                aria-label="Вход или регистрация"
-              >
-                <img src={userIcon} alt="" />
-              </button>
-            </>
+            <button
+              type="button"
+              className="auth-icon"
+              onClick={() => openAuthModal(false)}
+              aria-label="Вход или регистрация"
+              title="Вход или регистрация"
+            >
+              <img src={userIcon} alt="" />
+            </button>
           )}
         </div>
       </div>

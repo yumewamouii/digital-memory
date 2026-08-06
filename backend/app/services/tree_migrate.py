@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import date, datetime
 
 from sqlalchemy.orm import Session
 
@@ -13,25 +12,20 @@ from ..models import (
     TreePerson,
     TreePersonLayout,
 )
+from .partial_dates import normalize_partial_date
 from .tree_access import new_share_slug
 from .tree_layout import auto_layout_tree, ensure_layout
 
 logger = logging.getLogger(__name__)
 
 
-def _parse_date(value: str | None) -> date | None:
+def _parse_date(value: str | None) -> str | None:
     if not value:
         return None
-    raw = str(value).strip()
-    for fmt in ("%Y-%m-%d", "%Y"):
-        try:
-            dt = datetime.strptime(raw if fmt != "%Y" else f"{raw}-01-01", "%Y-%m-%d")
-            return dt.date()
-        except ValueError:
-            continue
-    if len(raw) == 4 and raw.isdigit():
-        return date(int(raw), 1, 1)
-    return None
+    try:
+        return normalize_partial_date(str(value).strip())
+    except ValueError:
+        return None
 
 
 def tree_needs_migration(tree: FamilyTree) -> bool:
@@ -76,6 +70,7 @@ def migrate_tree_json(db: Session, tree: FamilyTree) -> bool:
             death_date=_parse_date(pdata.get("deathYear")),
             note=pdata.get("note") or None,
             is_deceased=bool(pdata.get("deathYear")),
+            life_status="deceased" if pdata.get("deathYear") else "unknown",
         )
         db.add(person)
         db.flush()

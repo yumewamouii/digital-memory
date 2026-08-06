@@ -12,6 +12,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
+from sqlalchemy.types import JSON
 
 from .database import Base
 
@@ -22,7 +23,7 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String(255), unique=True, index=True, nullable=True)
     phone = Column(String(32), unique=True, index=True, nullable=True)
-    full_name = Column(String(255), nullable=False)
+    full_name = Column(String(255), nullable=True)
     password_hash = Column(String(255), nullable=True)
     google_id = Column(String(255), unique=True, index=True, nullable=True)
     vk_id = Column(String(255), unique=True, index=True, nullable=True)
@@ -170,10 +171,26 @@ class MemorialCard(Base):
     middle_name = Column(String(120), nullable=True)
     birth_date = Column(Date, nullable=True)
     death_date = Column(Date, nullable=True)
+    birth_place = Column(String(500), nullable=True)
+    birth_lat = Column(Float, nullable=True)
+    birth_lng = Column(Float, nullable=True)
+    death_place = Column(String(500), nullable=True)
+    death_lat = Column(Float, nullable=True)
+    death_lng = Column(Float, nullable=True)
+    life_status = Column(String(16), nullable=False, default="unknown")  # unknown|alive|deceased
+    epitaph = Column(Text, nullable=True)
+    short_description = Column(String(160), nullable=True)
+    relatives_text = Column(Text, nullable=True)
     biography = Column(Text, nullable=True)
     photo_url = Column(String(500), nullable=True)
     cemetery_name = Column(String(255), nullable=True)
-    cemetery_location = Column(String(255), nullable=True)
+    cemetery_location = Column(String(500), nullable=True)
+    cemetery_lat = Column(Float, nullable=True)
+    cemetery_lng = Column(Float, nullable=True)
+    page_kind = Column(String(32), nullable=False, default="brief")
+    guestbook_enabled = Column(Boolean, nullable=False, default=False)
+    metal_plaque = Column(Boolean, nullable=False, default=False)
+    external_links = Column(JSON, nullable=True)
     visibility = Column(String(32), nullable=False, default="private")
     status = Column(String(32), nullable=False, default="published")
     deleted_at = Column(DateTime(timezone=True), nullable=True)
@@ -188,6 +205,87 @@ class MemorialCard(Base):
     ownership_claims = relationship(
         "OwnershipClaim", back_populates="memorial", cascade="all, delete-orphan"
     )
+    gallery_images = relationship(
+        "MemorialGalleryImage",
+        back_populates="memorial",
+        cascade="all, delete-orphan",
+        order_by="MemorialGalleryImage.sort_order",
+    )
+    videos = relationship(
+        "MemorialVideo",
+        back_populates="memorial",
+        cascade="all, delete-orphan",
+        order_by="MemorialVideo.sort_order",
+    )
+    audio_clips = relationship(
+        "MemorialAudio",
+        back_populates="memorial",
+        cascade="all, delete-orphan",
+        order_by="MemorialAudio.sort_order",
+    )
+    documents = relationship(
+        "MemorialDocument",
+        back_populates="memorial",
+        cascade="all, delete-orphan",
+        order_by="MemorialDocument.sort_order",
+    )
+
+
+class MemorialGalleryImage(Base):
+    __tablename__ = "memorial_gallery_images"
+
+    id = Column(Integer, primary_key=True, index=True)
+    card_id = Column(Integer, ForeignKey("memorial_cards.id"), nullable=False, index=True)
+    url = Column(String(500), nullable=False)
+    caption = Column(String(255), nullable=True)
+    sort_order = Column(Integer, nullable=False, default=0)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    memorial = relationship("MemorialCard", back_populates="gallery_images")
+
+
+class MemorialVideo(Base):
+    __tablename__ = "memorial_videos"
+
+    id = Column(Integer, primary_key=True, index=True)
+    card_id = Column(Integer, ForeignKey("memorial_cards.id"), nullable=False, index=True)
+    source = Column(String(32), nullable=False)  # file | rutube | vk | youtube
+    url = Column(String(1000), nullable=False)
+    embed_url = Column(String(1000), nullable=True)
+    title = Column(String(255), nullable=True)
+    sort_order = Column(Integer, nullable=False, default=0)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    memorial = relationship("MemorialCard", back_populates="videos")
+
+
+class MemorialAudio(Base):
+    __tablename__ = "memorial_audio"
+
+    id = Column(Integer, primary_key=True, index=True)
+    card_id = Column(Integer, ForeignKey("memorial_cards.id"), nullable=False, index=True)
+    url = Column(String(500), nullable=False)
+    title = Column(String(255), nullable=True)
+    sort_order = Column(Integer, nullable=False, default=0)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    memorial = relationship("MemorialCard", back_populates="audio_clips")
+
+
+class MemorialDocument(Base):
+    __tablename__ = "memorial_documents"
+
+    id = Column(Integer, primary_key=True, index=True)
+    card_id = Column(Integer, ForeignKey("memorial_cards.id"), nullable=False, index=True)
+    url = Column(String(500), nullable=False)
+    title = Column(String(255), nullable=True)
+    category = Column(String(64), nullable=False, default="other")
+    # diploma | military | letter | award | other
+    original_name = Column(String(255), nullable=True)
+    sort_order = Column(Integer, nullable=False, default=0)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    memorial = relationship("MemorialCard", back_populates="documents")
 
 
 class OwnershipClaim(Base):
@@ -256,17 +354,29 @@ class TreePerson(Base):
     last_name = Column(String(120), nullable=True, default="")
     middle_name = Column(String(120), nullable=True, default="")
     gender = Column(String(16), nullable=True, default="")
-    birth_date = Column(Date, nullable=True)
-    death_date = Column(Date, nullable=True)
-    birth_place = Column(String(255), nullable=True)
-    death_place = Column(String(255), nullable=True)
+    # Partial dates as text: YYYY | YYYY-MM | YYYY-MM-DD
+    birth_date = Column(String(32), nullable=True)
+    death_date = Column(String(32), nullable=True)
+    birth_place = Column(String(500), nullable=True)
+    birth_lat = Column(Float, nullable=True)
+    birth_lng = Column(Float, nullable=True)
+    death_place = Column(String(500), nullable=True)
+    death_lat = Column(Float, nullable=True)
+    death_lng = Column(Float, nullable=True)
+    burial_place = Column(String(500), nullable=True)
+    burial_lat = Column(Float, nullable=True)
+    burial_lng = Column(Float, nullable=True)
     photo_path = Column(String(500), nullable=True)
     note = Column(Text, nullable=True)
+    # unknown | alive | deceased — is_deceased kept in sync (True only when deceased)
+    life_status = Column(String(16), nullable=False, default="unknown")
     is_deceased = Column(Boolean, default=False, nullable=False)
+    memorial_card_id = Column(Integer, ForeignKey("memorial_cards.id"), nullable=True, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     tree = relationship("FamilyTree", back_populates="persons")
+    memorial_card = relationship("MemorialCard", foreign_keys=[memorial_card_id])
     alt_names = relationship(
         "TreePersonName", back_populates="person", cascade="all, delete-orphan"
     )

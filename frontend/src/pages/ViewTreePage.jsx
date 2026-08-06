@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import TreeEditor from "../components/tree/TreeEditor";
 import PageHero from "../components/PageHero";
 import { getDemoTree, getTree, getTreeBySlug } from "../api/trees";
@@ -7,6 +7,8 @@ import { useAuth } from "../context/AuthContext";
 
 export default function ViewTreePage({ mode = "id" }) {
   const { treeId, shareSlug } = useParams();
+  const [searchParams] = useSearchParams();
+  const initialPersonId = searchParams.get("person");
   const { token, authHeaders, user } = useAuth();
   const [tree, setTree] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -65,8 +67,9 @@ export default function ViewTreePage({ mode = "id" }) {
             <>
               <TreeEditor
                 key={`${mode}-${tree.id}`}
-                tree={{ ...tree, can_edit: mode === "demo" ? false : tree.can_edit }}
+                tree={{ ...tree, can_edit: false }}
                 authHeaders={token ? authHeaders : {}}
+                initialPersonId={initialPersonId}
                 onTreeChange={setTree}
                 isDemo={mode === "demo"}
               />

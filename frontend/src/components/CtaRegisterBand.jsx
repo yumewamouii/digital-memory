@@ -38,12 +38,6 @@ export default function CtaRegisterBand({
                 onChange={(e) => setAuth({ ...auth, email: e.target.value })}
               />
               <input
-                placeholder="ФИО"
-                autoComplete="name"
-                value={auth.full_name}
-                onChange={(e) => setAuth({ ...auth, full_name: e.target.value })}
-              />
-              <input
                 type="password"
                 placeholder="Пароль"
                 autoComplete="new-password"

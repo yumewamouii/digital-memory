@@ -5,6 +5,7 @@ from datetime import date
 from sqlalchemy.orm import Session, joinedload
 
 from ..models import FamilyTree, TreeFamily, TreeFamilyChild, TreePerson
+from .partial_dates import normalize_partial_date
 from .tree_access import new_share_slug
 from .tree_layout import auto_layout_tree, ensure_layout
 from .tree_ops import touch_tree
@@ -69,31 +70,39 @@ def _clear_tree_content(db: Session, tree: FamilyTree) -> None:
     db.flush()
 
 
+def _as_partial(value: date | str | None) -> str | None:
+    if value is None:
+        return None
+    return normalize_partial_date(value)
+
+
 def _populate_romanov_tree(db: Session, tree: FamilyTree) -> None:
     def person(
         last: str,
         first: str,
         gender: str,
-        birth: date | None,
-        death: date | None,
+        birth: date | str | None,
+        death: date | str | None,
         *,
         middle: str | None = None,
         note: str | None = None,
         birth_place: str | None = None,
         death_place: str | None = None,
     ) -> TreePerson:
+        death_s = _as_partial(death)
         p = TreePerson(
             tree_id=tree.id,
             last_name=last,
             first_name=first,
             middle_name=middle or "",
             gender=gender,
-            birth_date=birth,
-            death_date=death,
+            birth_date=_as_partial(birth),
+            death_date=death_s,
             birth_place=birth_place,
             death_place=death_place,
             note=note,
-            is_deceased=bool(death),
+            is_deceased=bool(death_s),
+            life_status="deceased" if death_s else "unknown",
         )
         db.add(p)
         db.flush()
@@ -361,8 +370,11 @@ def clone_demo_tree(db: Session, *, owner_id: int | None, guest_token: str | Non
             death_date=src.death_date,
             birth_place=src.birth_place,
             death_place=src.death_place,
+            burial_place=src.burial_place,
             note=src.note,
             is_deceased=src.is_deceased,
+            life_status=getattr(src, "life_status", None)
+            or ("deceased" if src.is_deceased or src.death_date else "unknown"),
         )
         db.add(p)
         db.flush()

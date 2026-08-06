@@ -37,6 +37,34 @@ MEMORIAL_CARD_COLUMNS: dict[str, str] = {
     "deleted_at": "DATETIME",
     "deleted_by": "INTEGER",
     "updated_at": "DATETIME",
+    "birth_place": "VARCHAR(500)",
+    "birth_lat": "REAL",
+    "birth_lng": "REAL",
+    "death_place": "VARCHAR(500)",
+    "death_lat": "REAL",
+    "death_lng": "REAL",
+    "cemetery_lat": "REAL",
+    "cemetery_lng": "REAL",
+    "epitaph": "TEXT",
+    "short_description": "VARCHAR(160)",
+    "relatives_text": "TEXT",
+    "page_kind": "VARCHAR(32) DEFAULT 'brief'",
+    "guestbook_enabled": "BOOLEAN DEFAULT 0",
+    "metal_plaque": "BOOLEAN DEFAULT 0",
+    "external_links": "TEXT",
+    "life_status": "VARCHAR(16) DEFAULT 'unknown'",
+}
+
+TREE_PERSON_COLUMNS: dict[str, str] = {
+    "memorial_card_id": "INTEGER",
+    "burial_place": "VARCHAR(500)",
+    "burial_lat": "REAL",
+    "burial_lng": "REAL",
+    "birth_lat": "REAL",
+    "birth_lng": "REAL",
+    "death_lat": "REAL",
+    "death_lng": "REAL",
+    "life_status": "VARCHAR(16) DEFAULT 'unknown'",
 }
 
 
@@ -58,9 +86,9 @@ def _column_nullable(engine: Engine, table: str, column: str) -> bool | None:
 
 
 def _rebuild_users_for_nullability(engine: Engine) -> None:
-    """Recreate users table so email/password_hash can be NULL (SQLite)."""
+    """Recreate users table so email/password_hash/full_name can be NULL (SQLite)."""
     existing = _existing_columns(engine, "users")
-    logger.info("Rebuilding users table to allow nullable email/password_hash")
+    logger.info("Rebuilding users table to allow nullable email/password_hash/full_name")
 
     insert_cols = [
         "id",
@@ -78,6 +106,7 @@ def _rebuild_users_for_nullability(engine: Engine) -> None:
     ]
     defaults = {
         "phone": "NULL",
+        "full_name": "NULL",
         "google_id": "NULL",
         "vk_id": "NULL",
         "mailru_id": "NULL",
@@ -97,7 +126,7 @@ def _rebuild_users_for_nullability(engine: Engine) -> None:
                     id INTEGER NOT NULL PRIMARY KEY,
                     email VARCHAR(255),
                     phone VARCHAR(32),
-                    full_name VARCHAR(255) NOT NULL,
+                    full_name VARCHAR(255),
                     password_hash VARCHAR(255),
                     google_id VARCHAR(255),
                     vk_id VARCHAR(255),
@@ -216,7 +245,12 @@ def upgrade_schema(engine: Engine) -> None:
 
         email_nullable = _column_nullable(engine, "users", "email")
         password_nullable = _column_nullable(engine, "users", "password_hash")
-        if email_nullable is False or password_nullable is False:
+        full_name_nullable = _column_nullable(engine, "users", "full_name")
+        if (
+            email_nullable is False
+            or password_nullable is False
+            or full_name_nullable is False
+        ):
             if engine.dialect.name == "sqlite":
                 _rebuild_users_for_nullability(engine)
 
@@ -275,6 +309,103 @@ def upgrade_schema(engine: Engine) -> None:
                     UPDATE memorial_cards
                     SET status = 'published'
                     WHERE status IS NULL OR status = ''
+                    """
+                )
+            )
+            conn.execute(
+                text(
+                    """
+                    UPDATE memorial_cards
+                    SET page_kind = 'brief'
+                    WHERE page_kind IS NULL OR page_kind = ''
+                    """
+                )
+            )
+            conn.execute(
+                text(
+                    """
+                    UPDATE memorial_cards
+                    SET guestbook_enabled = 0
+                    WHERE guestbook_enabled IS NULL
+                    """
+                )
+            )
+            conn.execute(
+                text(
+                    """
+                    UPDATE memorial_cards
+                    SET metal_plaque = 0
+                    WHERE metal_plaque IS NULL
+                    """
+                )
+            )
+            conn.execute(
+                text(
+                    """
+                    UPDATE memorial_cards
+                    SET life_status = 'deceased'
+                    WHERE (life_status IS NULL OR life_status = '' OR life_status = 'unknown')
+                      AND (
+                        death_date IS NOT NULL
+                        OR (cemetery_name IS NOT NULL AND cemetery_name != '')
+                        OR (cemetery_location IS NOT NULL AND cemetery_location != '')
+                      )
+                    """
+                )
+            )
+            conn.execute(
+                text(
+                    """
+                    UPDATE memorial_cards
+                    SET life_status = 'unknown'
+                    WHERE life_status IS NULL OR life_status = ''
+                    """
+                )
+            )
+
+    existing_persons = _existing_columns(engine, "tree_persons")
+    if existing_persons:
+        with engine.begin() as conn:
+            for name, ddl_type in TREE_PERSON_COLUMNS.items():
+                if name not in existing_persons:
+                    logger.info("Adding column tree_persons.%s", name)
+                    conn.execute(text(f"ALTER TABLE tree_persons ADD COLUMN {name} {ddl_type}"))
+            # Backfill life_status from legacy is_deceased / death_date
+            conn.execute(
+                text(
+                    """
+                    UPDATE tree_persons
+                    SET life_status = 'deceased'
+                    WHERE (life_status IS NULL OR life_status = '' OR life_status = 'unknown')
+                      AND (is_deceased = 1 OR (death_date IS NOT NULL AND death_date != ''))
+                    """
+                )
+            )
+            conn.execute(
+                text(
+                    """
+                    UPDATE tree_persons
+                    SET life_status = 'unknown'
+                    WHERE life_status IS NULL OR life_status = ''
+                    """
+                )
+            )
+            # Normalize legacy DATE values to ISO text (SQLite stores them as strings already)
+            conn.execute(
+                text(
+                    """
+                    UPDATE tree_persons
+                    SET birth_date = substr(birth_date, 1, 10)
+                    WHERE birth_date IS NOT NULL AND length(birth_date) > 10
+                    """
+                )
+            )
+            conn.execute(
+                text(
+                    """
+                    UPDATE tree_persons
+                    SET death_date = substr(death_date, 1, 10)
+                    WHERE death_date IS NOT NULL AND length(death_date) > 10
                     """
                 )
             )

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import TreeEditor from "../components/tree/TreeEditor";
 import PageHero from "../components/PageHero";
 import { getTree } from "../api/trees";
@@ -7,6 +7,8 @@ import { useAuth } from "../context/AuthContext";
 
 export default function EditTreePage() {
   const { treeId } = useParams();
+  const [searchParams] = useSearchParams();
+  const initialPersonId = searchParams.get("person");
   const navigate = useNavigate();
   const { token, authHeaders, openAuthModal, setMessage } = useAuth();
   const [tree, setTree] = useState(null);
@@ -71,6 +73,7 @@ export default function EditTreePage() {
                 key={tree.id}
                 tree={tree}
                 authHeaders={token ? authHeaders : {}}
+                initialPersonId={initialPersonId}
                 onTreeChange={setTree}
                 onDeleted={() => {
                   setMessage("Древо удалено");

@@ -22,6 +22,24 @@ export const GENDER_OPTIONS = [
   { id: "female", label: "Женский" },
 ];
 
+export const LIFE_STATUS_OPTIONS = [
+  { id: "unknown", label: "Неизвестно", marker: "unknown" },
+  { id: "alive", label: "Жив", marker: "alive" },
+  { id: "deceased", label: "Умер", marker: "deceased" },
+];
+
+/** Resolve stored / legacy person fields to life_status. */
+export function deriveLifeStatus(person) {
+  if (!person) return "unknown";
+  const status = person.life_status;
+  if (status === "unknown" || status === "alive" || status === "deceased") {
+    if (person.death_date && status !== "deceased") return "deceased";
+    return status;
+  }
+  if (person.is_deceased || person.death_date) return "deceased";
+  return "unknown";
+}
+
 const PERSON_DATA_KEYS = [
   "firstName",
   "lastName",
@@ -113,21 +131,60 @@ export function isValidPersonName(value, { allowEmpty = true } = {}) {
   return PERSON_NAME_PATTERN.test(trimmed);
 }
 
-export function toDateInputValue(value) {
+const PARTIAL_DATE_RE = /^(\d{4})(?:-(\d{2})(?:-(\d{2}))?)?$/;
+
+/** Detect precision of a stored partial date. */
+export function partialDatePrecision(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "year";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return "day";
+  if (/^\d{4}-\d{2}$/.test(raw)) return "month";
+  if (/^\d{4}$/.test(raw)) return "year";
+  return "year";
+}
+
+/** Normalize to YYYY | YYYY-MM | YYYY-MM-DD or "". */
+export function normalizePartialDate(value) {
   if (!value) return "";
   const raw = String(value).trim();
-  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
-  if (/^\d{4}$/.test(raw)) return `${raw}-01-01`;
+  const match = PARTIAL_DATE_RE.exec(raw);
+  if (!match) return "";
+  const year = Number(match[1]);
+  if (year < 1 || year > 9999) return "";
+  if (!match[2]) return String(year).padStart(4, "0");
+  const month = Number(match[2]);
+  if (month < 1 || month > 12) return "";
+  if (!match[3]) return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}`;
+  const day = Number(match[3]);
+  const probe = new Date(year, month - 1, day);
+  if (probe.getFullYear() !== year || probe.getMonth() !== month - 1 || probe.getDate() !== day) {
+    return "";
+  }
+  return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+/** @deprecated Prefer normalizePartialDate; kept for full-day inputs. */
+export function toDateInputValue(value) {
+  const normalized = normalizePartialDate(value);
+  if (!normalized) return "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(normalized)) return normalized;
+  if (/^\d{4}-\d{2}$/.test(normalized)) return `${normalized}-01`;
+  if (/^\d{4}$/.test(normalized)) return `${normalized}-01-01`;
   return "";
 }
 
 export function formatPersonDate(value) {
   if (!value) return "";
-  const raw = String(value).trim();
+  const raw = normalizePartialDate(value) || String(value).trim();
   if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
     const [year, month, day] = raw.split("-");
     return `${day}.${month}.${year}`;
   }
+  if (/^\d{4}-\d{2}$/.test(raw)) {
+    const [year, month] = raw.split("-");
+    return `${month}.${year}`;
+  }
+  if (/^\d{4}$/.test(raw)) return raw;
   return raw;
 }
 
@@ -199,11 +256,14 @@ export function personInitials(data = {}) {
 }
 
 export function personAge(birthValue, deathValue) {
-  const birth = toDateInputValue(birthValue);
-  if (!birth) return null;
+  const birthNorm = normalizePartialDate(birthValue);
+  // Age needs at least a year; prefer full dates when available
+  if (!birthNorm) return null;
+  const birth = toDateInputValue(birthNorm);
   const birthDate = new Date(`${birth}T00:00:00`);
   if (Number.isNaN(birthDate.getTime())) return null;
-  const endRaw = toDateInputValue(deathValue);
+  const deathNorm = normalizePartialDate(deathValue);
+  const endRaw = deathNorm ? toDateInputValue(deathNorm) : "";
   const endDate = endRaw ? new Date(`${endRaw}T00:00:00`) : new Date();
   if (Number.isNaN(endDate.getTime()) || endDate < birthDate) return null;
   let age = endDate.getFullYear() - birthDate.getFullYear();

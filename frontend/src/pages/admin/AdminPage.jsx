@@ -146,9 +146,10 @@ export default function AdminPage() {
 
   const toggleActive = async (user) => {
     const nextActive = !user.is_active;
+    const label = user.email || user.phone || `#${user.id}`;
     const confirmText = nextActive
-      ? `Активировать аккаунт «${user.full_name}»?`
-      : `Деактивировать аккаунт «${user.full_name}»? Пользователь не сможет войти.`;
+      ? `Активировать аккаунт «${label}»?`
+      : `Деактивировать аккаунт «${label}»? Пользователь не сможет войти.`;
     if (!window.confirm(confirmText)) return;
     try {
       await updateAdminUser(user.id, { is_active: nextActive }, authHeaders);
@@ -160,7 +161,8 @@ export default function AdminPage() {
   };
 
   const setRolesForUser = async (user, roleCode) => {
-    if (!window.confirm(`Назначить роль «${ROLE_LABELS[roleCode] || roleCode}» пользователю ${user.full_name}?`)) {
+    const label = user.email || user.phone || `#${user.id}`;
+    if (!window.confirm(`Назначить роль «${ROLE_LABELS[roleCode] || roleCode}» пользователю ${label}?`)) {
       return;
     }
     try {
@@ -270,7 +272,7 @@ export default function AdminPage() {
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Поиск по email, телефону или ФИО"
+                placeholder="Поиск по email или телефону"
                 aria-label="Поиск пользователей"
               />
               <button type="submit" className="btn btn-primary btn-sm">
@@ -286,7 +288,6 @@ export default function AdminPage() {
                   <thead>
                     <tr>
                       <th>ID</th>
-                      <th>Пользователь</th>
                       <th>Контакт</th>
                       <th>Роль</th>
                       <th>Статус</th>
@@ -298,9 +299,8 @@ export default function AdminPage() {
                       <tr key={u.id} className={!u.is_active ? "is-inactive" : undefined}>
                         <td>#{u.id}</td>
                         <td>
-                          <strong>{u.full_name}</strong>
+                          <strong>{u.email || u.phone || "—"}</strong>
                         </td>
-                        <td>{u.email || u.phone || "—"}</td>
                         <td>
                           {(u.roles || [])
                             .map((r) => ROLE_LABELS[r] || r)
@@ -320,7 +320,7 @@ export default function AdminPage() {
                                 className="admin-role-select"
                                 value={(u.roles && u.roles[0]) || "user"}
                                 onChange={(e) => setRolesForUser(u, e.target.value)}
-                                aria-label={`Роль для ${u.full_name}`}
+                                aria-label={`Роль для ${u.email || u.phone || u.id}`}
                               >
                                 {ROLE_OPTIONS.map((opt) => (
                                   <option key={opt.value} value={opt.value}>

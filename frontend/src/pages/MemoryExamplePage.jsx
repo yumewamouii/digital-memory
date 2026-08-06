@@ -7,6 +7,8 @@ import {
   rasputinExample,
 } from "../data/memorialExamples";
 import rasputinPortrait from "../assets/rasputin-portrait.jpg";
+import { exportExampleMemorialPdf } from "../utils/exportMemorialPdf";
+import { useAuth } from "../context/AuthContext";
 
 const examplesBySlug = {
   brief: briefExample,
@@ -400,6 +402,8 @@ function ExtendedMemorial({ data, kicker = "Пример расширенной 
 
 export default function MemoryExamplePage() {
   const { type } = useParams();
+  const { setMessage } = useAuth();
+  const [exporting, setExporting] = useState(false);
 
   if (!type) {
     return (
@@ -452,6 +456,18 @@ export default function MemoryExamplePage() {
   const isBrief = type === "brief";
   const isRasputin = type === "rasputin";
 
+  const onExportPdf = async () => {
+    setExporting(true);
+    try {
+      await exportExampleMemorialPdf(data, { slug: type });
+      setMessage("PDF сохранён");
+    } catch {
+      setMessage("Не удалось сформировать PDF");
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <section className="section memorial-example-section">
       <div className="section-inner narrow">
@@ -469,6 +485,14 @@ export default function MemoryExamplePage() {
         )}
 
         <div className="hero-actions" style={{ marginTop: "2rem" }}>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            disabled={exporting}
+            onClick={onExportPdf}
+          >
+            {exporting ? "Формируем PDF..." : "Скачать PDF"}
+          </button>
           <Link to="/memory/create" className="btn btn-primary">
             Создать свою страницу
           </Link>

@@ -247,33 +247,17 @@ export default function AuthModal() {
             </div>
 
             {phoneStep === 2 && (
-              <>
-                {isRegister && (
-                  <div>
-                    <label className="form-label" htmlFor="auth-name">
-                      ФИО
-                    </label>
-                    <input
-                      id="auth-name"
-                      placeholder="ФИО"
-                      autoComplete="name"
-                      value={auth.full_name}
-                      onChange={(e) => setAuth({ ...auth, full_name: e.target.value })}
-                    />
-                  </div>
-                )}
-                <div>
-                  <label className="form-label" htmlFor="auth-code">
-                    Код из смс
-                  </label>
-                  <input
-                    id="auth-code"
-                    placeholder="Код"
-                    value={auth.code}
-                    onChange={(e) => setAuth({ ...auth, code: e.target.value })}
-                  />
-                </div>
-              </>
+              <div>
+                <label className="form-label" htmlFor="auth-code">
+                  Код из смс
+                </label>
+                <input
+                  id="auth-code"
+                  placeholder="Код"
+                  value={auth.code}
+                  onChange={(e) => setAuth({ ...auth, code: e.target.value })}
+                />
+              </div>
             )}
 
             {isRegister && phoneStep === 2 && (
@@ -309,21 +293,6 @@ export default function AuthModal() {
                 onChange={(e) => setAuth({ ...auth, email: e.target.value })}
               />
             </div>
-
-            {isRegister && (
-              <div>
-                <label className="form-label" htmlFor="auth-name">
-                  ФИО
-                </label>
-                <input
-                  id="auth-name"
-                  placeholder="ФИО"
-                  autoComplete="name"
-                  value={auth.full_name}
-                  onChange={(e) => setAuth({ ...auth, full_name: e.target.value })}
-                />
-              </div>
-            )}
 
             <div>
               <label className="form-label" htmlFor="auth-password">

@@ -35,10 +35,6 @@ export default function SettingsPage() {
           <h2 className="cabinet-section-title">Профиль</h2>
           <dl className="settings-dl">
             <div>
-              <dt>ФИО</dt>
-              <dd>{user?.full_name || "—"}</dd>
-            </div>
-            <div>
               <dt>Электронная почта</dt>
               <dd>{user?.email || "Не указана"}</dd>
             </div>

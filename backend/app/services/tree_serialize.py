@@ -3,24 +3,45 @@ from __future__ import annotations
 from sqlalchemy.orm import Session, joinedload
 
 from ..models import FamilyTree, TreeFamily, TreePerson
+from .partial_dates import normalize_partial_date
+
+
+def _date_str(value) -> str | None:
+    return normalize_partial_date(value)
 
 
 def person_to_dict(person: TreePerson) -> dict:
     layout = person.layout
+    memorial_id = getattr(person, "memorial_card_id", None)
     return {
         "id": person.id,
         "first_name": person.first_name or "",
         "last_name": person.last_name or "",
         "middle_name": person.middle_name or "",
         "gender": person.gender or "",
-        "birth_date": person.birth_date.isoformat() if person.birth_date else None,
-        "death_date": person.death_date.isoformat() if person.death_date else None,
+        "birth_date": _date_str(person.birth_date),
+        "death_date": _date_str(person.death_date),
         "birth_place": person.birth_place,
+        "birth_lat": person.birth_lat,
+        "birth_lng": person.birth_lng,
         "death_place": person.death_place,
+        "death_lat": person.death_lat,
+        "death_lng": person.death_lng,
+        "burial_place": person.burial_place,
+        "burial_lat": person.burial_lat,
+        "burial_lng": person.burial_lng,
         "photo_path": person.photo_path,
         "photo_url": f"/media/{person.photo_path}" if person.photo_path else None,
         "note": person.note,
-        "is_deceased": bool(person.is_deceased),
+        "life_status": getattr(person, "life_status", None)
+        or ("deceased" if person.is_deceased or person.death_date else "unknown"),
+        "is_deceased": bool(
+            (getattr(person, "life_status", None) == "deceased")
+            or person.is_deceased
+            or person.death_date
+        ),
+        "memorial_card_id": memorial_id,
+        "has_memorial": bool(memorial_id),
         "alt_names": [
             {
                 "id": n.id,

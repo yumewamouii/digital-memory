@@ -6,7 +6,7 @@ client = TestClient(app)
 email = "rbac_partner_only@example.com"
 client.post(
     "/api/auth/register",
-    json={"email": email, "full_name": "P User", "password": "password123"},
+    json={"email": email, "password": "password123"},
 )
 login = client.post(
     "/api/auth/login", data={"username": email, "password": "password123"}
