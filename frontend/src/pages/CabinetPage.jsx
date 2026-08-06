@@ -67,7 +67,27 @@ export default function CabinetPage() {
   };
 
   useEffect(() => {
-    if (token) loadData().catch(() => {});
+    if (!token) return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        setIsLoading(true);
+        const [cardsRes, treesData] = await Promise.all([
+          axios.get(`${API}/memorial-cards`, { headers: authHeaders }),
+          listTrees(authHeaders),
+        ]);
+        if (cancelled) return;
+        setCards(cardsRes.data);
+        setTrees(treesData);
+      } catch {
+        if (!cancelled) setMessage("Не удалось загрузить данные кабинета");
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [token]);
 
   const removeCard = async (card) => {

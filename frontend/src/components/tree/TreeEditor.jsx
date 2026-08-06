@@ -279,6 +279,7 @@ function TreeEditorInner({
           tree.id,
           [{ person_id: node.data.personId, x: node.position.x, y: node.position.y }],
           authHeaders,
+          { updatedAt: tree.updated_at },
         );
         applyTree(next);
       } catch (err) {
@@ -287,7 +288,7 @@ function TreeEditorInner({
         });
       }
     },
-    [canEdit, tree?.id, authHeaders, applyTree, showMessage],
+    [canEdit, tree?.id, tree?.updated_at, authHeaders, applyTree, showMessage],
   );
 
   const openPersonFromSearch = (personId) => {
@@ -325,7 +326,9 @@ function TreeEditorInner({
   const handleSavePerson = async (payload) => {
     setPersonBusy(true);
     try {
-      const next = await updatePerson(tree.id, selectedPersonId, payload, authHeaders);
+      const next = await updatePerson(tree.id, selectedPersonId, payload, authHeaders, {
+        updatedAt: tree.updated_at,
+      });
       applyTree(next);
       showMessage("Карточка сохранена");
       return true;
@@ -384,7 +387,9 @@ function TreeEditorInner({
   const handleUploadPhoto = async (file) => {
     setPersonBusy(true);
     try {
-      const next = await uploadPersonPhoto(tree.id, selectedPersonId, file, authHeaders);
+      const next = await uploadPersonPhoto(tree.id, selectedPersonId, file, authHeaders, {
+        updatedAt: tree.updated_at,
+      });
       applyTree(next);
     } catch (err) {
       showMessage(formatApiError(err?.response?.data?.detail, "Не удалось загрузить фото"), {
@@ -425,7 +430,7 @@ function TreeEditorInner({
   const handleMetaSave = async (patch) => {
     setPersonBusy(true);
     try {
-      const next = await updateTree(tree.id, patch, authHeaders);
+      const next = await updateTree(tree.id, patch, authHeaders, { updatedAt: tree.updated_at });
       applyTree(next);
       showMessage("Настройки сохранены");
     } catch (err) {

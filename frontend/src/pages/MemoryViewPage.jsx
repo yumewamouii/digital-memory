@@ -125,9 +125,18 @@ export default function MemoryViewPage() {
   const [lightboxItem, setLightboxItem] = useState(null);
 
   useEffect(() => {
+    let cancelled = false;
+    setError("");
     getMemorial(cardId, authHeaders)
-      .then(setCard)
-      .catch(() => setError("Карточка не найдена или недоступна"));
+      .then((data) => {
+        if (!cancelled) setCard(data);
+      })
+      .catch(() => {
+        if (!cancelled) setError("Карточка не найдена или недоступна");
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [cardId, token]);
 
   useEffect(() => {

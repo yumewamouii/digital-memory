@@ -159,6 +159,15 @@ class AuthCode(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
+class OAuthState(Base):
+    __tablename__ = "oauth_states"
+
+    state = Column(String(64), primary_key=True)
+    provider = Column(String(32), nullable=False, index=True)
+    expires_at = Column(DateTime(timezone=True), nullable=False, index=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
 class MemorialCard(Base):
     __tablename__ = "memorial_cards"
 

@@ -1,18 +1,19 @@
 from __future__ import annotations
 
 import secrets
-import time
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from typing import Any
 from urllib.parse import urlencode
 
 import httpx
 from fastapi import HTTPException, status
+from sqlalchemy.orm import Session
 
 from ..config import get_settings
+from ..database import SessionLocal
+from ..models import OAuthState
 
-# In-memory OAuth state store: state -> {provider, exp}
-_oauth_states: dict[str, dict[str, Any]] = {}
 STATE_TTL_SECONDS = 600
 
 
@@ -28,25 +29,52 @@ class OAuthProfile:
 PROVIDERS = ("google", "vk", "mailru")
 
 
-def _cleanup_states() -> None:
-    now = time.time()
-    expired = [key for key, value in _oauth_states.items() if value["exp"] < now]
-    for key in expired:
-        _oauth_states.pop(key, None)
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _cleanup_states(db: Session) -> None:
+    db.query(OAuthState).filter(OAuthState.expires_at < _utcnow()).delete(
+        synchronize_session=False
+    )
 
 
 def create_state(provider: str) -> str:
-    _cleanup_states()
-    state = secrets.token_urlsafe(24)
-    _oauth_states[state] = {"provider": provider, "exp": time.time() + STATE_TTL_SECONDS}
-    return state
+    db = SessionLocal()
+    try:
+        _cleanup_states(db)
+        state = secrets.token_urlsafe(24)
+        db.add(
+            OAuthState(
+                state=state,
+                provider=provider,
+                expires_at=_utcnow() + timedelta(seconds=STATE_TTL_SECONDS),
+            )
+        )
+        db.commit()
+        return state
+    finally:
+        db.close()
 
 
 def consume_state(state: str, provider: str) -> None:
-    _cleanup_states()
-    payload = _oauth_states.pop(state, None)
-    if not payload or payload["provider"] != provider:
-        raise HTTPException(status_code=400, detail="Некорректный OAuth state")
+    db = SessionLocal()
+    try:
+        _cleanup_states(db)
+        row = db.query(OAuthState).filter(OAuthState.state == state).first()
+        if not row or row.provider != provider:
+            raise HTTPException(status_code=400, detail="Некорректный OAuth state")
+        expires = row.expires_at
+        if expires.tzinfo is None:
+            expires = expires.replace(tzinfo=timezone.utc)
+        if expires < _utcnow():
+            db.delete(row)
+            db.commit()
+            raise HTTPException(status_code=400, detail="Некорректный OAuth state")
+        db.delete(row)
+        db.commit()
+    finally:
+        db.close()
 
 
 def provider_configured(provider: str) -> bool:
@@ -109,7 +137,6 @@ def build_authorize_url(provider: str) -> dict[str, str]:
         url = f"https://oauth.vk.com/authorize?{urlencode(params)}"
         return {"redirect_url": url, "state": state}
 
-    # mailru
     params = {
         "client_id": settings.mailru_client_id,
         "redirect_uri": redirect_uri,
@@ -204,7 +231,6 @@ async def exchange_code(provider: str, code: str) -> OAuthProfile:
                 email_verified=bool(email),
             )
 
-        # mailru
         token_resp = await client.post(
             "https://oauth.mail.ru/token",
             data={
