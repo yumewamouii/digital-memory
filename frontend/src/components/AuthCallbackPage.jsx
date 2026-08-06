@@ -12,17 +12,22 @@ export default function AuthCallbackPage() {
     if (handled.current) return undefined;
     handled.current = true;
 
+    // Prefer hash fragment only — query tokens leak via Referer/history/logs.
     const hash = window.location.hash.startsWith("#")
       ? window.location.hash.slice(1)
       : window.location.hash;
     const hashParams = new URLSearchParams(hash);
     const queryParams = new URLSearchParams(window.location.search);
-    const token = hashParams.get("token") || queryParams.get("token");
+    const token = hashParams.get("token");
     const error = queryParams.get("error") || hashParams.get("error");
+
+    if (window.location.hash || queryParams.has("token")) {
+      window.history.replaceState(null, "", window.location.pathname);
+    }
 
     if (error) {
       setStatus("Не удалось войти через соцсеть");
-      setMessage(error);
+      setMessage(typeof error === "string" ? error : "Ошибка авторизации");
       const timer = setTimeout(() => navigate("/cabinet", { replace: true }), 1500);
       return () => clearTimeout(timer);
     }

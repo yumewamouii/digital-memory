@@ -19,7 +19,6 @@ export function AuthProvider({ children }) {
   const [auth, setAuth] = useState({
     email: "",
     password: "",
-    full_name: "",
     phone: "",
     code: "",
     new_password: "",
@@ -76,38 +75,58 @@ export function AuthProvider({ children }) {
     setForgotStep(1);
   };
 
+  const clearSession = () => {
+    localStorage.removeItem("token");
+    setToken("");
+    setUser(null);
+  };
+
   const applyToken = (accessToken) => {
     localStorage.setItem("token", accessToken);
     setToken(accessToken);
-    // Claim guest trees created before login.
+    // Claim guest trees created before login; ignore if session already changed.
     import("../api/trees")
-      .then(({ claimGuestTrees }) =>
-        claimGuestTrees({ Authorization: `Bearer ${accessToken}` }),
-      )
+      .then(({ claimGuestTrees }) => {
+        if (localStorage.getItem("token") !== accessToken) return null;
+        return claimGuestTrees({ Authorization: `Bearer ${accessToken}` });
+      })
       .catch(() => {});
   };
 
-  const loadMe = async (headers = authHeaders) => {
+  const loadMe = async (headers = authHeaders, { signal } = {}) => {
     if (!headers.Authorization) {
       setUser(null);
       return null;
     }
     try {
-      const { data } = await axios.get(`${API}/auth/me`, { headers });
+      const { data } = await axios.get(`${API}/auth/me`, { headers, signal });
       setUser(data);
       return data;
-    } catch {
-      setUser(null);
+    } catch (error) {
+      if (axios.isCancel?.(error) || error?.code === "ERR_CANCELED" || signal?.aborted) {
+        return null;
+      }
+      const status = error?.response?.status;
+      if (status === 401 || status === 403) {
+        clearSession();
+      } else {
+        setUser(null);
+      }
       return null;
     }
   };
 
   useEffect(() => {
-    if (token) {
-      loadMe({ Authorization: `Bearer ${token}` }).catch(() => {});
-    } else {
+    if (!token) {
       setUser(null);
+      return undefined;
     }
+    const controller = new AbortController();
+    loadMe({ Authorization: `Bearer ${token}` }, { signal: controller.signal }).catch(
+      () => {},
+    );
+    return () => controller.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reload only when token changes
   }, [token]);
 
   useEffect(() => {
@@ -130,7 +149,6 @@ export function AuthProvider({ children }) {
       await axios.post(`${API}/auth/register`, {
         email: auth.email,
         password: auth.password,
-        full_name: auth.full_name,
       });
       setAuthSuccess("Регистрация успешна. Теперь выполните вход.");
       setIsRegister(false);
@@ -189,18 +207,11 @@ export function AuthProvider({ children }) {
       setAuthError("Укажите код из SMS");
       return;
     }
-    if (isRegister && auth.full_name.trim().length < 2) {
-      setAuthError("Укажите ФИО");
-      return;
-    }
     try {
       const payload = {
         phone: auth.phone.trim(),
         code: auth.code.trim(),
       };
-      if (isRegister) {
-        payload.full_name = auth.full_name.trim();
-      }
       const { data } = await axios.post(`${API}/auth/phone/verify`, payload);
       applyToken(data.access_token);
       setMessage(isRegister ? "Регистрация выполнена" : "Вход выполнен");
@@ -276,48 +287,64 @@ export function AuthProvider({ children }) {
   };
 
   const logout = () => {
-    localStorage.removeItem("token");
-    setToken("");
-    setUser(null);
+    clearSession();
     setMessage("Вы вышли из аккаунта");
   };
 
-  const value = {
-    auth,
-    setAuth,
-    token,
-    user,
-    loadMe,
-    message,
-    setMessage,
-    authError,
-    authSuccess,
-    authHeaders,
-    modalOpen,
-    isRegister,
-    authMethod,
-    setAuthMethod,
-    authView,
-    setAuthView,
-    forgotStep,
-    phoneStep,
-    setPhoneStep,
-    oauthProviders,
-    providerLabels: PROVIDER_LABELS,
-    openAuthModal,
-    closeAuthModal,
-    switchAuthMode,
-    register,
-    login,
-    requestPhoneCode,
-    verifyPhone,
-    startOAuth,
-    requestForgotCode,
-    resetPassword,
-    applyToken,
-    logout,
-    clearAuthFeedback,
-  };
+  const value = useMemo(
+    () => ({
+      auth,
+      setAuth,
+      token,
+      user,
+      loadMe,
+      message,
+      setMessage,
+      authError,
+      authSuccess,
+      authHeaders,
+      modalOpen,
+      isRegister,
+      authMethod,
+      setAuthMethod,
+      authView,
+      setAuthView,
+      forgotStep,
+      phoneStep,
+      setPhoneStep,
+      oauthProviders,
+      providerLabels: PROVIDER_LABELS,
+      openAuthModal,
+      closeAuthModal,
+      switchAuthMode,
+      register,
+      login,
+      requestPhoneCode,
+      verifyPhone,
+      startOAuth,
+      requestForgotCode,
+      resetPassword,
+      applyToken,
+      logout,
+      clearAuthFeedback,
+    }),
+    [
+      auth,
+      token,
+      user,
+      message,
+      authError,
+      authSuccess,
+      authHeaders,
+      modalOpen,
+      isRegister,
+      authMethod,
+      authView,
+      forgotStep,
+      phoneStep,
+      oauthProviders,
+    ],
+  );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
