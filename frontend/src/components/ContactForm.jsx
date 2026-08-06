@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
@@ -6,6 +6,14 @@ export default function ContactForm({ title = "Написать нам", compact
   const { setMessage } = useAuth();
   const [form, setForm] = useState({ name: "", email: "", message: "", agree: false });
   const [sending, setSending] = useState(false);
+  const timerRef = useRef(null);
+
+  useEffect(
+    () => () => {
+      if (timerRef.current) window.clearTimeout(timerRef.current);
+    },
+    [],
+  );
 
   const handleSubmit = (event) => {
     event.preventDefault();
@@ -18,7 +26,8 @@ export default function ContactForm({ title = "Написать нам", compact
       return;
     }
     setSending(true);
-    window.setTimeout(() => {
+    if (timerRef.current) window.clearTimeout(timerRef.current);
+    timerRef.current = window.setTimeout(() => {
       setSending(false);
       setForm({ name: "", email: "", message: "", agree: false });
       setMessage("Сообщение принято. Мы ответим в рабочее время.");

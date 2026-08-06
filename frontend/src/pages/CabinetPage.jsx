@@ -9,6 +9,7 @@ import { usePermissions } from "../auth/usePermissions";
 import { Permission } from "../auth/permissions";
 import { deleteMemorial } from "../api/memorials";
 import { personDisplayName, personSearchText } from "../utils/treeGraph";
+import { exportMemorialPdf } from "../utils/exportMemorialPdf";
 
 function formatTreeDate(value) {
   if (!value) return "";
@@ -41,6 +42,7 @@ export default function CabinetPage() {
   const [trees, setTrees] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [qrLoadingId, setQrLoadingId] = useState(null);
+  const [pdfLoadingId, setPdfLoadingId] = useState(null);
   const [renamingId, setRenamingId] = useState(null);
   const [renameTitle, setRenameTitle] = useState("");
   const [busyTreeId, setBusyTreeId] = useState(null);
@@ -87,11 +89,24 @@ export default function CabinetPage() {
         responseType: "blob",
       });
       const url = URL.createObjectURL(data);
-      window.open(url, "_blank");
+      window.open(url, "_blank", "noopener,noreferrer");
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
     } catch {
       setMessage("Не удалось открыть QR-код");
     } finally {
       setQrLoadingId(null);
+    }
+  };
+
+  const downloadPdf = async (card) => {
+    try {
+      setPdfLoadingId(card.id);
+      await exportMemorialPdf(card, { authHeaders });
+      setMessage("PDF сохранён");
+    } catch {
+      setMessage("Не удалось сформировать PDF");
+    } finally {
+      setPdfLoadingId(null);
     }
   };
 
@@ -255,6 +270,14 @@ export default function CabinetPage() {
                         <Link to={`/memory/${card.id}`} className="btn btn-ghost btn-sm">
                           Открыть
                         </Link>
+                        <button
+                          type="button"
+                          className="btn btn-outline btn-sm"
+                          onClick={() => downloadPdf(card)}
+                          disabled={pdfLoadingId === card.id}
+                        >
+                          {pdfLoadingId === card.id ? "PDF..." : "PDF"}
+                        </button>
                         <button
                           type="button"
                           className="btn btn-outline btn-sm"

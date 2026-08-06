@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import PageHero from "../components/PageHero";
 import { acceptInvite } from "../api/trees";
 import { useAuth } from "../context/AuthContext";
+import { formatApiError } from "../utils/apiErrors";
 
 export default function TreeInvitePage() {
   const { inviteToken } = useParams();
@@ -23,7 +24,9 @@ export default function TreeInvitePage() {
       } catch (err) {
         if (!cancelled) {
           setStatus("error");
-          setMessage(err?.response?.data?.detail || "Не удалось принять приглашение");
+          setMessage(
+            formatApiError(err?.response?.data?.detail, "Не удалось принять приглашение"),
+          );
         }
       }
     };

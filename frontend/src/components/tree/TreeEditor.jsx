@@ -24,25 +24,39 @@ import {
   addRelative,
   autoLayout,
   createPerson,
+  createPersonMemorial,
   deletePerson,
   deleteTree,
   inviteCollaborator,
   listCollaborators,
+  saveLayout,
   updatePerson,
   updateTree,
   uploadPersonPhoto,
 } from "../../api/trees";
 import { buildFlowGraph, personDisplayName, personSearchText } from "../../utils/treeGraph";
 import { PERSON_CARD } from "../../utils/treeCardLayout";
-import { RELATION_COLORS } from "../../utils/treeRelations";
+import { formatPersonYears, RELATION_COLORS } from "../../utils/treeRelations";
+import { formatApiError } from "../../utils/apiErrors";
 
 const nodeTypes = { person: PersonNode, familyHub: FamilyHubNode };
 const edgeTypes = { relation: RelationEdge };
+const GUEST_PERSON_LIMIT = 6;
+const MESSAGE_TTL_MS = 4000;
 
 const VIEW_MODES = [
   { id: "tree", label: "Древо" },
   { id: "list", label: "Список" },
 ];
+
+function personsNeedLayout(persons = []) {
+  if (!persons.length) return false;
+  return persons.every((p) => {
+    const x = Number(p.x);
+    const y = Number(p.y);
+    return (!x && !y) || (Number.isNaN(x) && Number.isNaN(y));
+  });
+}
 
 function TreeEditorInner({
   tree: initialTree,
@@ -50,24 +64,49 @@ function TreeEditorInner({
   onTreeChange,
   onDeleted,
   isDemo = false,
+  initialPersonId = null,
 }) {
-  const { fitView, getNodes } = useReactFlow();
+  const { fitView, getNodes, setCenter, getZoom } = useReactFlow();
   const [tree, setTree] = useState(initialTree);
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [viewMode, setViewMode] = useState("tree");
-  const [selectedPersonId, setSelectedPersonId] = useState(null);
+  const [selectedPersonId, setSelectedPersonId] = useState(() => {
+    const id = Number(initialPersonId);
+    return Number.isFinite(id) && id > 0 ? id : null;
+  });
   const [query, setQuery] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [personBusy, setPersonBusy] = useState(false);
+  const [exportBusy, setExportBusy] = useState(false);
+  const [layoutBusy, setLayoutBusy] = useState(false);
+  const [memorialBusy, setMemorialBusy] = useState(false);
   const [message, setLocalMessage] = useState("");
+  const [messageIsError, setMessageIsError] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("editor");
   const [collaborators, setCollaborators] = useState([]);
   const [showShare, setShowShare] = useState(false);
+  const [showMore, setShowMore] = useState(false);
   const canvasRef = useRef(null);
+  const moreRef = useRef(null);
   const canEdit = Boolean(tree?.can_edit);
   const hydratedTreeId = useRef(null);
   const fitTimer = useRef(null);
+  const messageTimer = useRef(null);
+  const initialLayoutDone = useRef(null);
+  const pendingFitPersonId = useRef(null);
+
+  const showMessage = useCallback((text, { error = false } = {}) => {
+    setLocalMessage(text || "");
+    setMessageIsError(Boolean(error));
+    window.clearTimeout(messageTimer.current);
+    if (text) {
+      messageTimer.current = window.setTimeout(() => {
+        setLocalMessage("");
+        setMessageIsError(false);
+      }, MESSAGE_TTL_MS);
+    }
+  }, []);
 
   const scheduleFitView = useCallback(() => {
     window.clearTimeout(fitTimer.current);
@@ -75,6 +114,25 @@ function TreeEditorInner({
       fitView({ padding: 0.2, duration: 200 });
     }, 80);
   }, [fitView]);
+
+  const fitToPerson = useCallback(
+    (personId) => {
+      if (!personId) return;
+      window.clearTimeout(fitTimer.current);
+      fitTimer.current = window.setTimeout(() => {
+        const node = getNodes().find((n) => n.data?.personId === personId);
+        if (!node) return;
+        const width = node.measured?.width || node.width || PERSON_CARD.width;
+        const height = node.measured?.height || node.height || PERSON_CARD.height;
+        const zoom = Math.max(getZoom(), 0.85);
+        setCenter(node.position.x + width / 2, node.position.y + height / 2, {
+          zoom,
+          duration: 280,
+        });
+      }, 100);
+    },
+    [getNodes, getZoom, setCenter],
+  );
 
   const applyTree = useCallback(
     (next, { notifyParent = true, fit = false } = {}) => {
@@ -85,8 +143,13 @@ function TreeEditorInner({
       setNodes(graph.nodes);
       setEdges(graph.edges);
       if (fit) scheduleFitView();
+      if (pendingFitPersonId.current) {
+        const id = pendingFitPersonId.current;
+        pendingFitPersonId.current = null;
+        fitToPerson(id);
+      }
     },
-    [onTreeChange, scheduleFitView, setEdges, setNodes],
+    [onTreeChange, scheduleFitView, setEdges, setNodes, fitToPerson],
   );
 
   // Hydrate from parent only when opening another tree — never echo onTreeChange back into a loop.
@@ -94,39 +157,85 @@ function TreeEditorInner({
     if (!initialTree?.id) return;
     if (hydratedTreeId.current === initialTree.id) return;
     hydratedTreeId.current = initialTree.id;
+    initialLayoutDone.current = null;
     applyTree(initialTree, { notifyParent: false, fit: true });
   }, [initialTree, applyTree]);
 
-  // Tree mode: one auto-layout pass when entering the mode / opening a tree.
+  // Open person from deep link (?person=) once the graph is ready.
+  const deepLinkOpened = useRef(false);
   useEffect(() => {
-    if (!canEdit || viewMode !== "tree" || !tree?.id) return undefined;
+    if (deepLinkOpened.current) return undefined;
+    const id = Number(initialPersonId);
+    if (!Number.isFinite(id) || id <= 0) return undefined;
+    if (!(tree?.persons || []).some((p) => p.id === id)) return undefined;
+    deepLinkOpened.current = true;
+    setSelectedPersonId(id);
+    fitToPerson(id);
+    return undefined;
+  }, [initialPersonId, tree?.id, tree?.persons, fitToPerson]);
+
+  // One-time auto-layout only when all persons lack meaningful coordinates.
+  useEffect(() => {
+    if (!canEdit || !tree?.id || viewMode !== "tree") return undefined;
+    if (initialLayoutDone.current === tree.id) return undefined;
+    if (!personsNeedLayout(tree.persons)) {
+      initialLayoutDone.current = tree.id;
+      return undefined;
+    }
     let cancelled = false;
     (async () => {
       try {
         const next = await autoLayout(tree.id, authHeaders);
-        if (!cancelled) applyTree(next, { fit: true });
+        if (!cancelled) {
+          initialLayoutDone.current = tree.id;
+          applyTree(next, { fit: true });
+        }
       } catch {
-        /* keep current positions */
+        initialLayoutDone.current = tree.id;
       }
     })();
     return () => {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tree?.id, viewMode]);
+  }, [tree?.id, canEdit, viewMode]);
 
+  const prevViewMode = useRef(viewMode);
   useEffect(() => {
-    if (viewMode === "list") return undefined;
-    scheduleFitView();
+    const switchedToTree = prevViewMode.current !== "tree" && viewMode === "tree";
+    prevViewMode.current = viewMode;
+    if (!switchedToTree) return undefined;
+    if (selectedPersonId) {
+      fitToPerson(selectedPersonId);
+    } else {
+      scheduleFitView();
+    }
     return undefined;
-  }, [viewMode, tree?.id, tree?.person_count, scheduleFitView]);
+  }, [viewMode, scheduleFitView, selectedPersonId, fitToPerson]);
 
   useEffect(
     () => () => {
       window.clearTimeout(fitTimer.current);
+      window.clearTimeout(messageTimer.current);
     },
     [],
   );
+
+  useEffect(() => {
+    if (!showMore) return undefined;
+    const onDocClick = (e) => {
+      if (moreRef.current && !moreRef.current.contains(e.target)) setShowMore(false);
+    };
+    const onKey = (e) => {
+      if (e.key === "Escape") setShowMore(false);
+    };
+    document.addEventListener("mousedown", onDocClick);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDocClick);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [showMore]);
 
   const selectedPerson = useMemo(
     () => (tree?.persons || []).find((p) => p.id === selectedPersonId) || null,
@@ -139,6 +248,10 @@ function TreeEditorInner({
     if (!q) return list;
     return list.filter((p) => personSearchText(p).includes(q));
   }, [tree, query]);
+
+  const isGuestTree =
+    canEdit && !authHeaders.Authorization && !tree?.owner_id && !isDemo;
+  const personCount = tree?.persons?.length || tree?.person_count || 0;
 
   const refreshCollaborators = async () => {
     if (!tree?.id || !authHeaders.Authorization) return;
@@ -158,9 +271,39 @@ function TreeEditorInner({
     if (id) setSelectedPersonId(id);
   }, []);
 
+  const onNodeDragStop = useCallback(
+    async (_e, node) => {
+      if (!canEdit || node.type !== "person" || !node.data?.personId) return;
+      try {
+        const next = await saveLayout(
+          tree.id,
+          [{ person_id: node.data.personId, x: node.position.x, y: node.position.y }],
+          authHeaders,
+        );
+        applyTree(next);
+      } catch (err) {
+        showMessage(formatApiError(err?.response?.data?.detail, "Не удалось сохранить позицию"), {
+          error: true,
+        });
+      }
+    },
+    [canEdit, tree?.id, authHeaders, applyTree, showMessage],
+  );
+
+  const openPersonFromSearch = (personId) => {
+    setSelectedPersonId(personId);
+    setQuery("");
+    if (viewMode !== "tree") {
+      pendingFitPersonId.current = personId;
+      setViewMode("tree");
+    } else {
+      fitToPerson(personId);
+    }
+  };
+
   const handleAddFirst = async () => {
     if (!canEdit) return;
-    setBusy(true);
+    setPersonBusy(true);
     try {
       const next = await createPerson(
         tree.id,
@@ -171,41 +314,49 @@ function TreeEditorInner({
       const created = next.persons?.[next.persons.length - 1];
       if (created) setSelectedPersonId(created.id);
     } catch (err) {
-      setLocalMessage(err?.response?.data?.detail || "Не удалось добавить человека");
+      showMessage(formatApiError(err?.response?.data?.detail, "Не удалось добавить человека"), {
+        error: true,
+      });
     } finally {
-      setBusy(false);
+      setPersonBusy(false);
     }
   };
 
   const handleSavePerson = async (payload) => {
-    setBusy(true);
+    setPersonBusy(true);
     try {
       const next = await updatePerson(tree.id, selectedPersonId, payload, authHeaders);
       applyTree(next);
-      setLocalMessage("Карточка сохранена");
+      showMessage("Карточка сохранена");
+      return true;
     } catch (err) {
-      setLocalMessage(err?.response?.data?.detail || "Не удалось сохранить");
+      showMessage(formatApiError(err?.response?.data?.detail, "Не удалось сохранить"), {
+        error: true,
+      });
+      return false;
     } finally {
-      setBusy(false);
+      setPersonBusy(false);
     }
   };
 
   const handleDeletePerson = async () => {
-    setBusy(true);
+    setPersonBusy(true);
     try {
       const next = await deletePerson(tree.id, selectedPersonId, authHeaders);
       applyTree(next);
       setSelectedPersonId(null);
     } catch (err) {
-      setLocalMessage(err?.response?.data?.detail || "Не удалось удалить");
+      showMessage(formatApiError(err?.response?.data?.detail, "Не удалось удалить"), {
+        error: true,
+      });
     } finally {
-      setBusy(false);
+      setPersonBusy(false);
     }
   };
 
   const handleAddRelative = async (option) => {
     if (!selectedPersonId || !option) return;
-    setBusy(true);
+    setPersonBusy(true);
     try {
       const next = await addRelative(
         tree.id,
@@ -221,52 +372,93 @@ function TreeEditorInner({
       if (next.new_person_id) setSelectedPersonId(next.new_person_id);
       setViewMode("tree");
     } catch (err) {
-      setLocalMessage(err?.response?.data?.detail || "Не удалось добавить родственника");
+      showMessage(
+        formatApiError(err?.response?.data?.detail, "Не удалось добавить родственника"),
+        { error: true },
+      );
     } finally {
-      setBusy(false);
+      setPersonBusy(false);
     }
   };
 
   const handleUploadPhoto = async (file) => {
-    setBusy(true);
+    setPersonBusy(true);
     try {
       const next = await uploadPersonPhoto(tree.id, selectedPersonId, file, authHeaders);
       applyTree(next);
     } catch (err) {
-      setLocalMessage(err?.response?.data?.detail || "Не удалось загрузить фото");
+      showMessage(formatApiError(err?.response?.data?.detail, "Не удалось загрузить фото"), {
+        error: true,
+      });
     } finally {
-      setBusy(false);
+      setPersonBusy(false);
+    }
+  };
+
+  const handleCreateMemorial = async () => {
+    if (!selectedPersonId) return;
+    if (!authHeaders.Authorization) {
+      showMessage("Войдите в аккаунт, чтобы создать страницу памяти", { error: true });
+      return;
+    }
+    setMemorialBusy(true);
+    try {
+      const next = await createPersonMemorial(tree.id, selectedPersonId, authHeaders);
+      applyTree(next);
+      const memorialId =
+        next.memorial_card_id ||
+        next.persons?.find((p) => p.id === selectedPersonId)?.memorial_card_id;
+      showMessage(memorialId ? "Страница памяти создана" : "Страница памяти уже связана");
+      if (memorialId) {
+        window.open(`/memory/${memorialId}`, "_blank", "noopener,noreferrer");
+      }
+    } catch (err) {
+      showMessage(
+        formatApiError(err?.response?.data?.detail, "Не удалось создать страницу памяти"),
+        { error: true },
+      );
+    } finally {
+      setMemorialBusy(false);
     }
   };
 
   const handleMetaSave = async (patch) => {
-    setBusy(true);
+    setPersonBusy(true);
     try {
       const next = await updateTree(tree.id, patch, authHeaders);
       applyTree(next);
-      setLocalMessage("Настройки сохранены");
+      showMessage("Настройки сохранены");
     } catch (err) {
-      setLocalMessage(err?.response?.data?.detail || "Не удалось сохранить");
+      showMessage(formatApiError(err?.response?.data?.detail, "Не удалось сохранить"), {
+        error: true,
+      });
     } finally {
-      setBusy(false);
+      setPersonBusy(false);
     }
   };
 
   const handleAutoLayout = async () => {
-    setBusy(true);
+    setLayoutBusy(true);
     try {
       const next = await autoLayout(tree.id, authHeaders);
       applyTree(next, { fit: true });
       setViewMode("tree");
     } finally {
-      setBusy(false);
+      setLayoutBusy(false);
     }
   };
 
   const handleDeleteTree = async () => {
+    setShowMore(false);
     if (!window.confirm(`Удалить древо «${tree.title}» целиком?`)) return;
-    await deleteTree(tree.id, authHeaders);
-    onDeleted?.();
+    try {
+      await deleteTree(tree.id, authHeaders);
+      onDeleted?.();
+    } catch (err) {
+      showMessage(formatApiError(err?.response?.data?.detail, "Не удалось удалить древо"), {
+        error: true,
+      });
+    }
   };
 
   const captureTreeImage = async ({ pixelRatio = 3 } = {}) => {
@@ -277,7 +469,6 @@ function TreeEditorInner({
     const flowNodes = getNodes();
     if (!flowNodes.length) return null;
 
-    // Ensure bounds use on-screen card size, not a squeezed viewport.
     const sizedNodes = flowNodes.map((node) => {
       const isHub = node.type === "familyHub";
       const width = node.measured?.width || node.width || (isHub ? 10 : PERSON_CARD.width);
@@ -293,7 +484,6 @@ function TreeEditorInner({
 
     root.classList.add("tree-exporting");
     try {
-      // Let CSS hide background/minimap before snapshot.
       await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
       return await toPng(viewportEl, {
         cacheBust: true,
@@ -313,7 +503,8 @@ function TreeEditorInner({
   };
 
   const exportPng = async () => {
-    setBusy(true);
+    setShowMore(false);
+    setExportBusy(true);
     try {
       const dataUrl = await captureTreeImage({ pixelRatio: 3 });
       if (!dataUrl) return;
@@ -322,12 +513,13 @@ function TreeEditorInner({
       link.href = dataUrl;
       link.click();
     } finally {
-      setBusy(false);
+      setExportBusy(false);
     }
   };
 
   const exportPdf = async () => {
-    setBusy(true);
+    setShowMore(false);
+    setExportBusy(true);
     try {
       const pixelRatio = 3;
       const dataUrl = await captureTreeImage({ pixelRatio });
@@ -340,7 +532,6 @@ function TreeEditorInner({
         image.src = dataUrl;
       });
 
-      // Page follows image aspect so cards are not stretched to A4.
       const cssW = img.width / pixelRatio;
       const cssH = img.height / pixelRatio;
       const ptPerPx = 72 / 96;
@@ -360,7 +551,7 @@ function TreeEditorInner({
       pdf.addImage(dataUrl, "PNG", 0, 0, pageW, pageH, undefined, "NONE");
       pdf.save(`${tree.title || "tree"}.pdf`);
     } finally {
-      setBusy(false);
+      setExportBusy(false);
     }
   };
 
@@ -379,7 +570,7 @@ function TreeEditorInner({
           <label className="form-label">Название</label>
           <input
             value={tree?.title || ""}
-            disabled={!canEdit}
+            disabled={!canEdit || personBusy}
             onChange={(e) => setTree((prev) => ({ ...prev, title: e.target.value }))}
             onBlur={() => {
               if (canEdit && tree?.title?.trim()?.length >= 2) {
@@ -406,39 +597,71 @@ function TreeEditorInner({
         <div className="tree-editor-actions">
           {canEdit ? (
             <>
-              <button type="button" className="btn btn-secondary btn-sm" onClick={handleAddFirst} disabled={busy}>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={handleAddFirst}
+                disabled={personBusy}
+              >
                 Добавить человека
               </button>
-              <button type="button" className="btn btn-outline btn-sm" onClick={handleAutoLayout} disabled={busy}>
-                Выровнять
+              <button
+                type="button"
+                className="btn btn-outline btn-sm"
+                onClick={handleAutoLayout}
+                disabled={layoutBusy || personBusy}
+              >
+                {layoutBusy ? "Выравниваем..." : "Выровнять"}
               </button>
             </>
           ) : null}
-          <div className="tree-download-group">
-            <span className="form-label">Скачать в</span>
-            <div className="tree-download-buttons">
-              <button type="button" className="btn btn-outline btn-sm" onClick={exportPng} disabled={busy}>
-                PNG
-              </button>
-              <button type="button" className="btn btn-outline btn-sm" onClick={exportPdf} disabled={busy}>
-                PDF
-              </button>
-            </div>
-          </div>
           {!isDemo ? (
             <button type="button" className="btn btn-outline btn-sm" onClick={() => setShowShare((v) => !v)}>
               Доступ
             </button>
           ) : null}
-          {canEdit ? (
-            <button type="button" className="btn btn-ghost btn-sm" onClick={handleDeleteTree}>
-              Удалить древо
+          <div className="tree-more-menu" ref={moreRef}>
+            <button
+              type="button"
+              className="btn btn-outline btn-sm"
+              aria-expanded={showMore}
+              onClick={() => setShowMore((v) => !v)}
+            >
+              Ещё
             </button>
-          ) : null}
+            {showMore ? (
+              <div className="tree-more-dropdown" role="menu">
+                <button type="button" role="menuitem" disabled={exportBusy} onClick={exportPng}>
+                  {exportBusy ? "Экспорт..." : "Скачать PNG"}
+                </button>
+                <button type="button" role="menuitem" disabled={exportBusy} onClick={exportPdf}>
+                  {exportBusy ? "Экспорт..." : "Скачать PDF"}
+                </button>
+                {canEdit ? (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="tree-more-danger"
+                    onClick={handleDeleteTree}
+                  >
+                    Удалить древо
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
         </div>
       </div>
 
-      {message ? <p className="hint-text tree-editor-hint">{message}</p> : null}
+      {isGuestTree ? (
+        <p className="tree-guest-limit-banner">
+          Гостевой режим: {personCount} / {GUEST_PERSON_LIMIT} карточек. Войдите, чтобы снять лимит.
+        </p>
+      ) : null}
+
+      {message ? (
+        <p className={`hint-text tree-editor-hint${messageIsError ? " has-error" : ""}`}>{message}</p>
+      ) : null}
 
       {showShare && !isDemo ? (
         <div className="tree-share-panel">
@@ -462,7 +685,10 @@ function TreeEditorInner({
                 <button
                   type="button"
                   className="btn btn-outline btn-sm"
-                  onClick={() => navigator.clipboard?.writeText(shareUrl)}
+                  onClick={() => {
+                    navigator.clipboard?.writeText(shareUrl);
+                    showMessage("Ссылка скопирована");
+                  }}
                 >
                   Копировать
                 </button>
@@ -494,14 +720,19 @@ function TreeEditorInner({
                         authHeaders,
                       );
                       setInviteEmail("");
-                      setLocalMessage(
-                        row.invite_url
-                          ? `Приглашение создано: ${window.location.origin}${row.invite_url}`
-                          : "Приглашение отправлено",
-                      );
+                      if (row.invite_url) {
+                        const full = `${window.location.origin}${row.invite_url}`;
+                        await navigator.clipboard?.writeText(full);
+                        showMessage("Приглашение создано, ссылка скопирована");
+                      } else {
+                        showMessage("Приглашение отправлено");
+                      }
                       refreshCollaborators();
                     } catch (err) {
-                      setLocalMessage(err?.response?.data?.detail || "Не удалось пригласить");
+                      showMessage(
+                        formatApiError(err?.response?.data?.detail, "Не удалось пригласить"),
+                        { error: true },
+                      );
                     }
                   }}
                 >
@@ -538,7 +769,7 @@ function TreeEditorInner({
               >
                 <strong>{personDisplayName(person)}</strong>
                 <span>
-                  {[person.birth_date, person.death_date].filter(Boolean).join(" — ") || "Даты не указаны"}
+                  {formatPersonYears(person.birth_date, person.death_date) || "Даты не указаны"}
                 </span>
               </button>
             ))}
@@ -547,6 +778,31 @@ function TreeEditorInner({
         </div>
       ) : (
         <div className="tree-editor-canvas" ref={canvasRef}>
+          <div className="tree-canvas-search">
+            <input
+              className="tree-people-search"
+              placeholder="Найти на древе..."
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+            {query.trim() ? (
+              <div className="tree-canvas-search-results">
+                {filteredPeople.slice(0, 8).map((person) => (
+                  <button
+                    key={person.id}
+                    type="button"
+                    className="tree-canvas-search-item"
+                    onClick={() => openPersonFromSearch(person.id)}
+                  >
+                    {personDisplayName(person)}
+                  </button>
+                ))}
+                {!filteredPeople.length ? (
+                  <p className="hint-text tree-canvas-search-empty">Никого не найдено</p>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
           {(tree?.persons || []).length === 0 ? (
             <div className="tree-empty-state">
               <div className="tree-empty-illustration" aria-hidden="true" />
@@ -565,13 +821,14 @@ function TreeEditorInner({
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onNodeClick={onNodeClick}
+            onNodeDragStop={onNodeDragStop}
             nodeTypes={nodeTypes}
             edgeTypes={edgeTypes}
-            nodesDraggable={false}
+            nodesDraggable={canEdit}
             nodesConnectable={false}
             connectionMode={ConnectionMode.Loose}
             elementsSelectable
-            onlyRenderVisibleElements={false}
+            onlyRenderVisibleElements
             minZoom={0.15}
             maxZoom={2}
             proOptions={{ hideAttribution: true }}
@@ -615,12 +872,14 @@ function TreeEditorInner({
         <PersonFullscreenCard
           person={selectedPerson}
           canEdit={canEdit}
-          isSaving={busy}
+          isSaving={personBusy}
+          isCreatingMemorial={memorialBusy}
           onClose={() => setSelectedPersonId(null)}
           onSave={handleSavePerson}
           onDelete={handleDeletePerson}
           onAddRelative={handleAddRelative}
           onUploadPhoto={handleUploadPhoto}
+          onCreateMemorial={handleCreateMemorial}
         />
       ) : null}
     </div>

@@ -144,6 +144,15 @@ export async function uploadPersonPhoto(treeId, personId, file, authHeaders = {}
   return data;
 }
 
+export async function createPersonMemorial(treeId, personId, authHeaders = {}) {
+  const { data } = await axios.post(
+    `${API}/family-trees/${treeId}/persons/${personId}/memorial`,
+    {},
+    { headers: treeHeaders(authHeaders) },
+  );
+  return data;
+}
+
 export async function importGedcom(file, authHeaders = {}) {
   const form = new FormData();
   form.append("file", file);
@@ -192,8 +201,23 @@ export async function acceptInvite(token, authHeaders) {
 
 export function mediaUrl(pathOrUrl) {
   if (!pathOrUrl) return "";
-  if (pathOrUrl.startsWith("http")) return pathOrUrl;
+  const value = String(pathOrUrl).trim();
+  if (!value) return "";
+  // Absolute URLs: only same-origin http(s); reject javascript:/data: etc.
+  if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(value)) {
+    try {
+      const parsed = new URL(value);
+      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return "";
+      const apiOrigin = new URL(API, window.location.origin).origin;
+      if (parsed.origin !== apiOrigin && parsed.origin !== window.location.origin) {
+        return "";
+      }
+      return parsed.href;
+    } catch {
+      return "";
+    }
+  }
   const origin = API.replace(/\/api\/?$/, "");
-  if (pathOrUrl.startsWith("/media")) return `${origin}${pathOrUrl}`;
-  return `${origin}/media/${pathOrUrl.replace(/^\/+/, "")}`;
+  if (value.startsWith("/media")) return `${origin}${value}`;
+  return `${origin}/media/${value.replace(/^\/+/, "")}`;
 }
