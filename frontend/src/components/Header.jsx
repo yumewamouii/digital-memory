@@ -23,7 +23,7 @@ function DropdownLink({ to, children, className = "", onNavigate }) {
   );
 }
 
-function NavDropdown({ to, label, children, open, onToggle, onNavigate }) {
+function NavDropdown({ to, label, icon, children, open, onToggle, onNavigate }) {
   return (
     <div className={`nav-item${open ? " open" : ""}`}>
       <NavLink
@@ -40,7 +40,8 @@ function NavDropdown({ to, label, children, open, onToggle, onNavigate }) {
           }
         }}
       >
-        {label}
+        {icon}
+        <span>{label}</span>
       </NavLink>
       <div className="dropdown" role="menu">
         {children}
@@ -70,6 +71,76 @@ function MenuIcon({ open }) {
         strokeWidth="1.7"
         strokeLinecap="round"
       />
+    </svg>
+  );
+}
+
+function IconMemory() {
+  return (
+    <svg className="nav-icon" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+      <path
+        d="M4.2 2.2h5.1L12 4.9v8.9H4.2V2.2Z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinejoin="round"
+      />
+      <path d="M9.2 2.3V5h2.7" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
+      <path d="M6 8.2h4.2M6 10.6h2.8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function IconTree() {
+  return (
+    <svg className="nav-icon" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+      <path
+        d="M8 1.8c-2.2 0-3.8 1.5-3.8 3.3 0 .7.3 1.4.7 1.9C3.7 7.3 2.8 8.4 2.8 9.7c0 1.7 1.6 3 3.7 3H7.2v1.5h1.6v-1.5h.7c2.1 0 3.7-1.3 3.7-3 0-1.3-.9-2.4-2.1-2.7.4-.5.7-1.2.7-1.9 0-1.8-1.6-3.3-3.8-3.3Z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.35"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function IconPlaces() {
+  return (
+    <svg className="nav-icon" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+      <path
+        d="M8 14.2 3.2 9.7A3.9 3.9 0 0 1 8 2.8a3.9 3.9 0 0 1 4.8 6.9L8 14.2Z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinejoin="round"
+      />
+      <circle cx="8" cy="7.2" r="1.45" fill="none" stroke="currentColor" strokeWidth="1.3" />
+    </svg>
+  );
+}
+
+function IconPricing() {
+  return (
+    <svg className="nav-icon" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+      <path
+        d="M3.2 8.8 8.7 3.3h3.8v3.8L7.2 12.8a1.3 1.3 0 0 1-1.8 0L3.2 10.6a1.3 1.3 0 0 1 0-1.8Z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinejoin="round"
+      />
+      <circle cx="11" cy="5" r="0.9" fill="currentColor" />
+    </svg>
+  );
+}
+
+function IconMore() {
+  return (
+    <svg className="nav-icon" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+      <circle cx="3.5" cy="8" r="1.15" fill="currentColor" />
+      <circle cx="8" cy="8" r="1.15" fill="currentColor" />
+      <circle cx="12.5" cy="8" r="1.15" fill="currentColor" />
     </svg>
   );
 }
@@ -172,6 +243,7 @@ export default function Header() {
             <NavDropdown
               to="/memory"
               label="Страницы памяти"
+              icon={<IconMemory />}
               open={openDropdown === "memory"}
               onToggle={() => toggleDropdown("memory")}
               onNavigate={closeAll}
@@ -196,6 +268,7 @@ export default function Header() {
             <NavDropdown
               to="/family-tree"
               label="Семейное древо"
+              icon={<IconTree />}
               open={openDropdown === "tree"}
               onToggle={() => toggleDropdown("tree")}
               onNavigate={closeAll}
@@ -224,6 +297,7 @@ export default function Header() {
             <NavDropdown
               to="/places"
               label="Памятные места"
+              icon={<IconPlaces />}
               open={openDropdown === "places"}
               onToggle={() => toggleDropdown("places")}
               onNavigate={closeAll}
@@ -244,7 +318,8 @@ export default function Header() {
               className={({ isActive }) => `nav-link${isActive ? " active" : ""}`}
               onClick={closeAll}
             >
-              Цены
+              <IconPricing />
+              <span>Цены</span>
             </NavLink>
 
             <div className={`nav-item${openDropdown === "more" ? " open" : ""}`}>
@@ -255,7 +330,8 @@ export default function Header() {
                 aria-expanded={openDropdown === "more"}
                 onClick={() => toggleDropdown("more")}
               >
-                Ещё
+                <IconMore />
+                <span>Ещё</span>
               </button>
               <div className="dropdown" role="menu">
                 <DropdownLink to="/about" onNavigate={closeAll}>
