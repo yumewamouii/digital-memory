@@ -21,7 +21,7 @@ const MEMORIAL_LIFE_STATUS_LABELS = {
 };
 
 const CAPABILITIES_CORE = ["Фото", "Видео", "Документы"];
-const CAPABILITIES_EXTRA = ["QR-код", "Приватный доступ", "Семейная история"];
+const CAPABILITIES_EXTRA = ["QR-код", "Приватный доступ", "Место захоронения"];
 
 const CONSTRUCTOR_STEPS = [
   { id: "basics", title: "Основные сведения" },
@@ -98,7 +98,7 @@ const pagePlans = [
       "Неограниченная фотогалерея",
       "Видео и аудиозаписи",
       "Документы и награды",
-      "Семейная история и памятные места",
+      "Генеалогическое древо и места захоронения",
     ],
   },
 ];
@@ -117,7 +117,7 @@ function makeEmptyForm() {
     photoPreview: "",
     epitaph: "",
     biography: "",
-    is_private: false,
+    visibility: "unlisted",
     family_links: "",
     galleryFiles: [],
     videos: [],
@@ -542,7 +542,7 @@ export default function CreateCardPage() {
           : null,
       cemetery_lat: isDeceased ? cardForm.cemetery_place.latitude : null,
       cemetery_lng: isDeceased ? cardForm.cemetery_place.longitude : null,
-      visibility: cardForm.is_private ? "private" : "unlisted",
+      visibility: cardForm.visibility || "unlisted",
     };
 
     try {
@@ -591,8 +591,17 @@ export default function CreateCardPage() {
       setSaved(true);
       setSavedId(card.id);
       setMessage("Карточка памяти создана");
-    } catch {
-      setMessage("Не удалось создать карточку. Попробуйте еще раз.");
+    } catch (err) {
+      const detail = err?.response?.data?.detail;
+      if (Array.isArray(detail) && detail.length) {
+        const first = detail[0];
+        const fieldHint = first.field ? `Поле «${first.field}»: ` : "";
+        setMessage(`${fieldHint}${first.message || "Проверьте данные формы"}`);
+      } else if (typeof detail === "string") {
+        setMessage(detail);
+      } else {
+        setMessage("Не удалось создать карточку. Попробуйте еще раз.");
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -616,7 +625,7 @@ export default function CreateCardPage() {
       settings: Boolean(
         cardForm.birth_place.address.trim() ||
           cardForm.family_links.trim() ||
-          cardForm.is_private ||
+          cardForm.visibility !== "unlisted" ||
           cardForm.metal_plaque ||
           cardForm.life_status !== "unknown",
       ),
@@ -1397,14 +1406,38 @@ export default function CreateCardPage() {
                     hint="Приватность, гостевая книга и табличка с QR."
                   >
                     <div className="form-grid">
-                      <label className="form-check">
-                        <input
-                          type="checkbox"
-                          checked={cardForm.is_private}
-                          onChange={(e) => updateField("is_private", e.target.checked)}
-                        />
-                        <span>Приватная страница — доступ только по вашей ссылке</span>
-                      </label>
+                      <div className="tree-death-field">
+                        <span className="form-label">Видимость страницы</span>
+                        <div className="life-status-group" role="radiogroup" aria-label="Видимость страницы">
+                          <label className="form-check">
+                            <input
+                              type="radio"
+                              name="card-visibility-extended"
+                              checked={cardForm.visibility === "private"}
+                              onChange={() => updateField("visibility", "private")}
+                            />
+                            <span>Приватная — только для вас</span>
+                          </label>
+                          <label className="form-check">
+                            <input
+                              type="radio"
+                              name="card-visibility-extended"
+                              checked={cardForm.visibility === "unlisted"}
+                              onChange={() => updateField("visibility", "unlisted")}
+                            />
+                            <span>По ссылке — доступна всем, у кого есть ссылка</span>
+                          </label>
+                          <label className="form-check">
+                            <input
+                              type="radio"
+                              name="card-visibility-extended"
+                              checked={cardForm.visibility === "public"}
+                              onChange={() => updateField("visibility", "public")}
+                            />
+                            <span>Публичная — отображается в музее памяти</span>
+                          </label>
+                        </div>
+                      </div>
                       <label className="form-check">
                         <input
                           type="checkbox"
@@ -1453,14 +1486,38 @@ export default function CreateCardPage() {
                         />
                       </div>
                     ) : null}
-                    <label className="form-check">
-                      <input
-                        type="checkbox"
-                        checked={cardForm.is_private}
-                        onChange={(e) => updateField("is_private", e.target.checked)}
-                      />
-                      <span>Приватная страница — доступ только по вашей ссылке</span>
-                    </label>
+                    <div className="tree-death-field">
+                      <span className="form-label">Видимость страницы</span>
+                      <div className="life-status-group" role="radiogroup" aria-label="Видимость страницы">
+                        <label className="form-check">
+                          <input
+                            type="radio"
+                            name="card-visibility-brief"
+                            checked={cardForm.visibility === "private"}
+                            onChange={() => updateField("visibility", "private")}
+                          />
+                          <span>Приватная — только для вас</span>
+                        </label>
+                        <label className="form-check">
+                          <input
+                            type="radio"
+                            name="card-visibility-brief"
+                            checked={cardForm.visibility === "unlisted"}
+                            onChange={() => updateField("visibility", "unlisted")}
+                          />
+                          <span>По ссылке — доступна всем, у кого есть ссылка</span>
+                        </label>
+                        <label className="form-check">
+                          <input
+                            type="radio"
+                            name="card-visibility-brief"
+                            checked={cardForm.visibility === "public"}
+                            onChange={() => updateField("visibility", "public")}
+                          />
+                          <span>Публичная — отображается в музее памяти</span>
+                        </label>
+                      </div>
+                    </div>
                     <p className="hint-text" style={{ margin: 0 }}>
                       После создания страницы будет доступен QR-код для печати.
                     </p>

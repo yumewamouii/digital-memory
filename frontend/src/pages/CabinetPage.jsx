@@ -224,7 +224,15 @@ export default function CabinetPage() {
                 Permission.ORG_CREATE,
                 Permission.MEMORIAL_CREATE_ORG,
               ) ||
-                hasAny(Permission.ADMIN_ACCESS, Permission.USER_MANAGE, Permission.AUDIT_READ)) && (
+                hasAny(
+                  Permission.ADMIN_ACCESS,
+                  Permission.USER_MANAGE,
+                  Permission.AUDIT_READ,
+                  Permission.ORG_MANAGE_ANY,
+                  Permission.MEMORIAL_CLAIM_REVIEW,
+                  Permission.CONTENT_MODERATE,
+                  Permission.MEMORIAL_RESTORE,
+                )) && (
                 <div className="cabinet-workspaces">
                   <h2 className="cabinet-section-title">Рабочие пространства</h2>
                   <ul className="cabinet-workspace-list">
@@ -244,11 +252,15 @@ export default function CabinetPage() {
                       Permission.ADMIN_ACCESS,
                       Permission.USER_MANAGE,
                       Permission.AUDIT_READ,
+                      Permission.ORG_MANAGE_ANY,
+                      Permission.MEMORIAL_CLAIM_REVIEW,
+                      Permission.CONTENT_MODERATE,
+                      Permission.MEMORIAL_RESTORE,
                     ) && (
                       <li>
                         <Link to="/admin" className="cabinet-workspace-link">
                           <strong>Админ-панель</strong>
-                          <span>Пользователи, модерация и журнал действий</span>
+                          <span>Пользователи, организации, модерация и журнал действий</span>
                         </Link>
                       </li>
                     )}

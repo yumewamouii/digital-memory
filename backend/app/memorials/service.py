@@ -5,11 +5,14 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from fastapi import HTTPException, Request, status
-from sqlalchemy import or_
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload
 
 from ..audit.service import log_action
 from ..domain.enums import ClaimStatus, MemorialStatus, MemorialVisibility, PermissionCode
+from ..moderation.errors import ModerationError
+from ..moderation.http import moderation_http_exception
+from ..moderation.pipeline import validate_brief_card_payload
 from ..models import (
     FamilyTree,
     MemorialAudio,
@@ -373,14 +376,44 @@ def create_card(
     cemetery_lat = payload.cemetery_lat if life_status == "deceased" else None
     cemetery_lng = payload.cemetery_lng if life_status == "deceased" else None
 
+    page_kind = payload.page_kind or "brief"
+    first_name = payload.first_name
+    last_name = payload.last_name
+    middle_name = payload.middle_name
+    epitaph = payload.epitaph
+    biography = payload.biography
+    birth_date = payload.birth_date
+
+    if page_kind == "brief":
+        try:
+            cleaned = validate_brief_card_payload(
+                {
+                    "page_kind": page_kind,
+                    "first_name": first_name,
+                    "last_name": last_name,
+                    "middle_name": middle_name,
+                    "epitaph": epitaph,
+                    "biography": biography,
+                    "birth_date": birth_date,
+                    "death_date": death_date,
+                }
+            )
+        except ModerationError as exc:
+            raise moderation_http_exception(exc) from exc
+        first_name = cleaned.get("first_name", first_name)
+        last_name = cleaned.get("last_name", last_name)
+        middle_name = cleaned.get("middle_name", middle_name)
+        epitaph = cleaned.get("epitaph", epitaph)
+        biography = cleaned.get("biography", biography)
+
     card = MemorialCard(
         owner_id=owner_id,
         created_by=user.id,
         organization_id=org_id,
-        first_name=payload.first_name,
-        last_name=payload.last_name,
-        middle_name=payload.middle_name,
-        birth_date=payload.birth_date,
+        first_name=first_name,
+        last_name=last_name,
+        middle_name=middle_name,
+        birth_date=birth_date,
         death_date=death_date,
         birth_place=payload.birth_place,
         birth_lat=payload.birth_lat,
@@ -389,16 +422,16 @@ def create_card(
         death_lat=death_lat,
         death_lng=death_lng,
         life_status=life_status,
-        epitaph=payload.epitaph,
+        epitaph=epitaph,
         short_description=payload.short_description,
         relatives_text=payload.relatives_text,
-        biography=payload.biography,
+        biography=biography,
         photo_url=payload.photo_url,
         cemetery_name=cemetery_name,
         cemetery_location=cemetery_location,
         cemetery_lat=cemetery_lat,
         cemetery_lng=cemetery_lng,
-        page_kind=payload.page_kind or "brief",
+        page_kind=page_kind,
         guestbook_enabled=bool(payload.guestbook_enabled) if payload.guestbook_enabled is not None else False,
         metal_plaque=bool(payload.metal_plaque) if payload.metal_plaque is not None else False,
         external_links=_external_links_payload(payload.external_links) or [],
@@ -431,11 +464,19 @@ def _cards_with_media(q):
 
 
 def list_accessible_cards(db: Session, user: User, *, include_deleted: bool = False) -> list[MemorialCard]:
+    """Cards for the personal cabinet: owned by the user or their orgs.
+
+    Global listing (all users' cards) is only for admin trash when
+    ``include_deleted`` is True and the caller has restore/read-any rights.
+    """
     q = db.query(MemorialCard)
     if not include_deleted:
         q = q.filter(MemorialCard.deleted_at.is_(None))
 
-    if rbac_service.user_has_permission(db, user, PermissionCode.MEMORIAL_READ_ANY):
+    if include_deleted and (
+        rbac_service.user_has_permission(db, user, PermissionCode.MEMORIAL_RESTORE)
+        or rbac_service.user_has_permission(db, user, PermissionCode.MEMORIAL_READ_ANY)
+    ):
         return (
             _cards_with_media(q)
             .order_by(MemorialCard.created_at.desc())
@@ -461,31 +502,69 @@ def list_accessible_cards(db: Session, user: User, *, include_deleted: bool = Fa
     )
 
 
+def _fio_concat(*parts):
+    """Build trimmed full-name expression with single spaces between parts."""
+    expr = None
+    for part in parts:
+        piece = func.trim(func.coalesce(part, ""))
+        if expr is None:
+            expr = piece
+        else:
+            expr = func.trim(func.concat(expr, " ", piece))
+    return expr
+
+
 def search_public_cards(
     db: Session,
     *,
     query: str | None = None,
-    limit: int = 50,
-) -> list[MemorialCard]:
-    q = _cards_with_media(
-        db.query(MemorialCard).filter(
-            MemorialCard.deleted_at.is_(None),
-            MemorialCard.visibility == MemorialVisibility.PUBLIC,
-            MemorialCard.status == MemorialStatus.PUBLISHED,
-        )
+    page: int = 1,
+    page_size: int = 12,
+) -> tuple[list[MemorialCard], int, int, int]:
+    safe_page = max(1, page)
+    safe_size = min(max(1, page_size), 100)
+
+    base = db.query(MemorialCard).filter(
+        MemorialCard.deleted_at.is_(None),
+        MemorialCard.visibility == MemorialVisibility.PUBLIC,
+        MemorialCard.status == MemorialStatus.PUBLISHED,
     )
-    if query:
-        like = f"%{query.strip()}%"
-        q = q.filter(
+    if query and query.strip():
+        normalized = " ".join(query.strip().split())
+        like = f"%{normalized}%"
+        fio_last_first_middle = _fio_concat(
+            MemorialCard.last_name,
+            MemorialCard.first_name,
+            MemorialCard.middle_name,
+        )
+        fio_first_last_middle = _fio_concat(
+            MemorialCard.first_name,
+            MemorialCard.last_name,
+            MemorialCard.middle_name,
+        )
+        fio_last_first = _fio_concat(MemorialCard.last_name, MemorialCard.first_name)
+        fio_first_last = _fio_concat(MemorialCard.first_name, MemorialCard.last_name)
+        base = base.filter(
             or_(
                 MemorialCard.first_name.ilike(like),
                 MemorialCard.last_name.ilike(like),
                 MemorialCard.middle_name.ilike(like),
-                MemorialCard.short_description.ilike(like),
-                MemorialCard.cemetery_name.ilike(like),
+                fio_last_first_middle.ilike(like),
+                fio_first_last_middle.ilike(like),
+                fio_last_first.ilike(like),
+                fio_first_last.ilike(like),
             )
         )
-    return q.order_by(MemorialCard.created_at.desc()).limit(limit).all()
+
+    total = base.count()
+    cards = (
+        _cards_with_media(base)
+        .order_by(MemorialCard.created_at.desc())
+        .offset((safe_page - 1) * safe_size)
+        .limit(safe_size)
+        .all()
+    )
+    return cards, total, safe_page, safe_size
 
 
 def get_card_or_404(db: Session, card_id: int, *, include_deleted: bool = False) -> MemorialCard:
@@ -526,6 +605,36 @@ def update_card(
     data["life_status"] = next_status
     if next_status != "deceased":
         _clear_death_fields(data)
+
+    next_kind = data.get("page_kind", card.page_kind) or "brief"
+    if next_kind == "brief":
+        try:
+            cleaned = validate_brief_card_payload(
+                {
+                    "page_kind": next_kind,
+                    "first_name": data.get("first_name", card.first_name),
+                    "last_name": data.get("last_name", card.last_name),
+                    "middle_name": data.get("middle_name", card.middle_name),
+                    "epitaph": data["epitaph"] if "epitaph" in data else card.epitaph,
+                    "biography": data["biography"] if "biography" in data else card.biography,
+                    "birth_date": data.get("birth_date", card.birth_date),
+                    "death_date": (
+                        data.get("death_date", card.death_date)
+                        if next_status == "deceased"
+                        else None
+                    ),
+                }
+            )
+        except ModerationError as exc:
+            raise moderation_http_exception(exc) from exc
+        data["first_name"] = cleaned.get("first_name", card.first_name)
+        data["last_name"] = cleaned.get("last_name", card.last_name)
+        if "middle_name" in data:
+            data["middle_name"] = cleaned.get("middle_name")
+        if "epitaph" in data:
+            data["epitaph"] = cleaned.get("epitaph")
+        if "biography" in data:
+            data["biography"] = cleaned.get("biography")
 
     for field, value in data.items():
         setattr(card, field, value)

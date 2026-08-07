@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import userIcon from "../assets/Icon_Avatar.svg";
+import logoMark from "../assets/logo.png";
 import { useAuth } from "../context/AuthContext";
 import { usePermissions } from "../auth/usePermissions";
 import { Permission } from "../auth/permissions";
@@ -48,6 +49,31 @@ function NavDropdown({ to, label, children, open, onToggle, onNavigate }) {
   );
 }
 
+function MenuIcon({ open }) {
+  if (open) {
+    return (
+      <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+        <path
+          d="M4 4L14 14M14 4L4 14"
+          stroke="currentColor"
+          strokeWidth="1.7"
+          strokeLinecap="round"
+        />
+      </svg>
+    );
+  }
+  return (
+    <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+      <path
+        d="M3.5 5H14.5M3.5 9H14.5M3.5 13H14.5"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
 export default function Header() {
   const { token, user, openAuthModal, logout } = useAuth();
   const { hasAny } = usePermissions();
@@ -69,6 +95,9 @@ export default function Header() {
     Permission.USER_MANAGE,
     Permission.AUDIT_READ,
     Permission.ORG_MANAGE_ANY,
+    Permission.MEMORIAL_CLAIM_REVIEW,
+    Permission.CONTENT_MODERATE,
+    Permission.MEMORIAL_RESTORE,
   );
 
   useEffect(() => {
@@ -122,138 +151,135 @@ export default function Header() {
 
       <div className="header-inner">
         <Link to="/" className="logo" onClick={closeAll}>
-          Гис<span>Мемориал</span>
+          <img src={logoMark} alt="" className="logo-mark" />
+          <span className="logo-text">
+            Гис<span>Мемориал</span>
+          </span>
         </Link>
 
-        <button
-          type="button"
-          className="nav-toggle"
-          aria-label={menuOpen ? "Закрыть меню" : "Открыть меню"}
-          aria-expanded={menuOpen}
-          onClick={() => setMenuOpen((value) => !value)}
-        >
-          {menuOpen ? "×" : "≡"}
-        </button>
+        <div className={`nav-pill${menuOpen ? " open" : ""}`}>
+          <button
+            type="button"
+            className="nav-toggle"
+            aria-label={menuOpen ? "Закрыть меню" : "Открыть меню"}
+            aria-expanded={menuOpen}
+            onClick={() => setMenuOpen((value) => !value)}
+          >
+            <MenuIcon open={menuOpen} />
+          </button>
 
-        <nav className={`nav${menuOpen ? " open" : ""}`}>
-          <div className={`nav-item${openDropdown === "more" ? " open" : ""}`}>
-            <button
-              type="button"
-              className="nav-label burger-label"
-              aria-label="Ещё разделы"
-              aria-expanded={openDropdown === "more"}
-              onClick={() => toggleDropdown("more")}
+          <nav className={`nav${menuOpen ? " open" : ""}`}>
+            <NavDropdown
+              to="/memory"
+              label="Страницы памяти"
+              open={openDropdown === "memory"}
+              onToggle={() => toggleDropdown("memory")}
+              onNavigate={closeAll}
             >
-              ≡
-            </button>
-            <div className="dropdown" role="menu">
-              <DropdownLink to="/#home-top" onNavigate={closeAll}>
-                Главная
+              <DropdownLink to="/memory#memory-view" onNavigate={closeAll}>
+                Пример
+              </DropdownLink>
+              <DropdownLink to="/memory#memory-why" onNavigate={closeAll}>
+                Зачем создавать
+              </DropdownLink>
+              <DropdownLink to="/memory#memory-services" onNavigate={closeAll}>
+                Что хранится
+              </DropdownLink>
+              <DropdownLink to="/memory#memory-how" onNavigate={closeAll}>
+                Как создать
               </DropdownLink>
               <DropdownLink to="/memory/museum" onNavigate={closeAll}>
                 Музей памяти
               </DropdownLink>
-              <DropdownLink to="/pricing" onNavigate={closeAll}>
-                Цены
-              </DropdownLink>
-              <DropdownLink to="/faq" onNavigate={closeAll}>
-                Вопросы и ответы
-              </DropdownLink>
-              <DropdownLink to="/services" onNavigate={closeAll}>
-                Услуги
-              </DropdownLink>
-              <DropdownLink to="/sitemap" onNavigate={closeAll}>
-                Карта сайта
-              </DropdownLink>
-            </div>
-          </div>
+            </NavDropdown>
 
-          <NavDropdown
-            to="/memory"
-            label="Страницы памяти"
-            open={openDropdown === "memory"}
-            onToggle={() => toggleDropdown("memory")}
-            onNavigate={closeAll}
-          >
-            <DropdownLink to="/memory#memory-view" onNavigate={closeAll}>
-              Пример
-            </DropdownLink>
-            <DropdownLink to="/memory#memory-why" onNavigate={closeAll}>
-              Зачем создавать
-            </DropdownLink>
-            <DropdownLink to="/memory#memory-services" onNavigate={closeAll}>
-              Что хранится
-            </DropdownLink>
-            <DropdownLink to="/memory#memory-how" onNavigate={closeAll}>
-              Как создать
-            </DropdownLink>
-            <DropdownLink to="/memory/museum" onNavigate={closeAll}>
-              Музей памяти
-            </DropdownLink>
-          </NavDropdown>
-
-          <NavDropdown
-            to="/places"
-            label="Памятные места"
-            open={openDropdown === "places"}
-            onToggle={() => toggleDropdown("places")}
-            onNavigate={closeAll}
-          >
-            <DropdownLink to="/places#places-benefits" onNavigate={closeAll}>
-              Польза
-            </DropdownLink>
-            <DropdownLink to="/places#places-examples" onNavigate={closeAll}>
-              Примеры
-            </DropdownLink>
-            <DropdownLink to="/places#places-advantages" onNavigate={closeAll}>
-              Преимущества
-            </DropdownLink>
-          </NavDropdown>
-
-          <NavDropdown
-            to="/family-tree"
-            label="Семейное древо"
-            open={openDropdown === "tree"}
-            onToggle={() => toggleDropdown("tree")}
-            onNavigate={closeAll}
-          >
-            <DropdownLink to="/family-tree#tree-example" onNavigate={closeAll}>
-              Пример древа
-            </DropdownLink>
-            <DropdownLink to="/family-tree#tree-advantages" onNavigate={closeAll}>
-              Возможности
-            </DropdownLink>
-            <DropdownLink to="/family-tree#tree-create" onNavigate={closeAll}>
-              Как создать древо
-            </DropdownLink>
-            <DropdownLink to="/family-tree#tree-subscription" onNavigate={closeAll}>
-              Тарифы
-            </DropdownLink>
-            <DropdownLink
-              to="/family-tree/create"
-              className="dropdown-btn"
+            <NavDropdown
+              to="/family-tree"
+              label="Семейное древо"
+              open={openDropdown === "tree"}
+              onToggle={() => toggleDropdown("tree")}
               onNavigate={closeAll}
             >
-              Создать древо
-            </DropdownLink>
-          </NavDropdown>
+              <DropdownLink to="/family-tree#tree-example" onNavigate={closeAll}>
+                Пример древа
+              </DropdownLink>
+              <DropdownLink to="/family-tree#tree-advantages" onNavigate={closeAll}>
+                Возможности
+              </DropdownLink>
+              <DropdownLink to="/family-tree#tree-create" onNavigate={closeAll}>
+                Как создать древо
+              </DropdownLink>
+              <DropdownLink to="/family-tree#tree-subscription" onNavigate={closeAll}>
+                Тарифы
+              </DropdownLink>
+              <DropdownLink
+                to="/family-tree/create"
+                className="dropdown-btn"
+                onNavigate={closeAll}
+              >
+                Создать древо
+              </DropdownLink>
+            </NavDropdown>
 
-          <NavLink
-            to="/about"
-            className={({ isActive }) => `nav-link${isActive ? " active" : ""}`}
-            onClick={closeAll}
-          >
-            О сервисе
-          </NavLink>
+            <NavDropdown
+              to="/places"
+              label="Памятные места"
+              open={openDropdown === "places"}
+              onToggle={() => toggleDropdown("places")}
+              onNavigate={closeAll}
+            >
+              <DropdownLink to="/places#places-benefits" onNavigate={closeAll}>
+                Польза
+              </DropdownLink>
+              <DropdownLink to="/places#places-examples" onNavigate={closeAll}>
+                Примеры
+              </DropdownLink>
+              <DropdownLink to="/places#places-advantages" onNavigate={closeAll}>
+                Преимущества
+              </DropdownLink>
+            </NavDropdown>
 
-          <NavLink
-            to="/contacts"
-            className={({ isActive }) => `nav-link${isActive ? " active" : ""}`}
-            onClick={closeAll}
-          >
-            Контакты
-          </NavLink>
-        </nav>
+            <NavLink
+              to="/pricing"
+              className={({ isActive }) => `nav-link${isActive ? " active" : ""}`}
+              onClick={closeAll}
+            >
+              Цены
+            </NavLink>
+
+            <div className={`nav-item${openDropdown === "more" ? " open" : ""}`}>
+              <button
+                type="button"
+                className="nav-label nav-label-more"
+                aria-label="Ещё разделы"
+                aria-expanded={openDropdown === "more"}
+                onClick={() => toggleDropdown("more")}
+              >
+                Ещё
+              </button>
+              <div className="dropdown" role="menu">
+                <DropdownLink to="/about" onNavigate={closeAll}>
+                  О сервисе
+                </DropdownLink>
+                <DropdownLink to="/contacts" onNavigate={closeAll}>
+                  Контакты
+                </DropdownLink>
+                <DropdownLink to="/faq" onNavigate={closeAll}>
+                  Вопросы и ответы
+                </DropdownLink>
+                <DropdownLink to="/services" onNavigate={closeAll}>
+                  Услуги
+                </DropdownLink>
+                <DropdownLink to="/memory/museum" onNavigate={closeAll}>
+                  Музей памяти
+                </DropdownLink>
+                <DropdownLink to="/sitemap" onNavigate={closeAll}>
+                  Карта сайта
+                </DropdownLink>
+              </div>
+            </div>
+          </nav>
+        </div>
 
         <div className="header-actions">
           {token ? (
@@ -263,7 +289,7 @@ export default function Header() {
             >
               <button
                 type="button"
-                className="btn btn-ghost btn-sm account-menu-trigger"
+                className="header-icon-btn account-menu-trigger"
                 aria-expanded={accountOpen}
                 aria-haspopup="menu"
                 aria-label="Аккаунт"
@@ -334,7 +360,7 @@ export default function Header() {
           ) : (
             <button
               type="button"
-              className="auth-icon"
+              className="header-icon-btn auth-icon"
               onClick={() => openAuthModal(false)}
               aria-label="Вход или регистрация"
               title="Вход или регистрация"

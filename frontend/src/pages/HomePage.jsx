@@ -161,9 +161,9 @@ export default function HomePage() {
         <div className="home-landing-hero-shade" aria-hidden="true" />
         <div className="home-landing-hero-inner">
           <p className="home-landing-brand">ГисМемориал</p>
-          <h1>Оставьте будущим поколениям больше, чем имя на памятнике</h1>
+          <h1>Сохраните семейные фотографии, документы и воспоминания в одном месте</h1>
           <p className="home-landing-lead">
-            Страница памяти с фото, голосом и историей близкого — и QR-код, который
+            Страница памяти с фото, голосом и биографией — и QR-код, который
             открывает её у памятника или в семейном чате.
           </p>
           <div className="home-landing-actions">
@@ -195,7 +195,7 @@ export default function HomePage() {
             </li>
             <li>
               <strong>На годы вперёд</strong>
-              <span>история, которую откроют дети</span>
+              <span>фотографии и документы в одном месте</span>
             </li>
           </ul>
         </div>
@@ -360,7 +360,7 @@ export default function HomePage() {
         <div className="section-inner">
           <span className="section-tag">Ещё в сервисе</span>
           <h2 className="section-title">Рядом со страницей памяти</h2>
-          <p className="lead">Семейное древо и памятные места — если нужно связать поколения или описать место.</p>
+          <p className="lead">Генеалогическое древо и места захоронения — рядом со страницами памяти.</p>
           <div className="home-more-grid">
             <article className="home-more-card">
               <figure className="home-more-media">
@@ -470,8 +470,8 @@ export default function HomePage() {
       </section>
 
       <CtaRegisterBand
-        title="Память, которая останется детям"
-        text="Зарегистрируйтесь, чтобы сохранить черновик в кабинете и вернуться к нему в любой день."
+        title="Сохраните черновик в кабинете"
+        text="Зарегистрируйтесь, чтобы вернуться к фотографиям и тексту в любой день."
       />
     </>
   );

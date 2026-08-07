@@ -3,12 +3,20 @@ import { Link, useParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { usePermissions } from "../auth/usePermissions";
 import { Permission } from "../auth/permissions";
-import { createOwnershipClaim, getMemorial, getMemorialQrBlob } from "../api/memorials";
+import { createOwnershipClaim, getMemorial, getMemorialQrBlob, reportMemorial } from "../api/memorials";
 import { mediaUrl } from "../api/trees";
 import MemorialLocationMap from "../components/MemorialLocationMap";
 import MemorialVideoPlayer from "../components/memorial/MemorialVideoPlayer";
 import { exportMemorialPdf } from "../utils/exportMemorialPdf";
 import { safeHttpUrl } from "../utils/safeUrl";
+
+const REPORT_REASONS = [
+  { value: "false_info", label: "Ложная информация" },
+  { value: "profanity", label: "Нецензурная лексика" },
+  { value: "offensive", label: "Оскорбительный контент" },
+  { value: "nsfw_photo", label: "Непристойная фотография" },
+  { value: "other", label: "Другое" },
+];
 
 function yearFromDate(value) {
   if (!value) return null;
@@ -119,6 +127,10 @@ export default function MemoryViewPage() {
   const { has } = usePermissions();
   const [card, setCard] = useState(null);
   const [claimMessage, setClaimMessage] = useState("");
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportReason, setReportReason] = useState("false_info");
+  const [reportMessage, setReportMessage] = useState("");
+  const [reportSending, setReportSending] = useState(false);
   const [error, setError] = useState("");
   const [exporting, setExporting] = useState(false);
   const [qrUrl, setQrUrl] = useState("");
@@ -170,6 +182,31 @@ export default function MemoryViewPage() {
       setClaimMessage("");
     } catch {
       setMessage("Не удалось отправить запрос");
+    }
+  };
+
+  const onReport = async (e) => {
+    e.preventDefault();
+    if (!token) {
+      openAuthModal(false);
+      return;
+    }
+    try {
+      setReportSending(true);
+      await reportMemorial(
+        cardId,
+        { reason: reportReason, message: reportMessage.trim() || null },
+        authHeaders,
+      );
+      setMessage("Жалоба отправлена. Спасибо.");
+      setReportOpen(false);
+      setReportMessage("");
+      setReportReason("false_info");
+    } catch (err) {
+      const detail = err?.response?.data?.detail;
+      setMessage(typeof detail === "string" ? detail : "Не удалось отправить жалобу");
+    } finally {
+      setReportSending(false);
     }
   };
 
@@ -298,6 +335,67 @@ export default function MemoryViewPage() {
       </form>
     ) : null;
 
+  const reportBlock =
+    token && user && user.id !== card.owner_id && !card.deleted_at ? (
+      <div className="memorial-report" style={{ marginTop: "1.5rem" }}>
+        {!reportOpen ? (
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            onClick={() => setReportOpen(true)}
+          >
+            Пожаловаться на страницу
+          </button>
+        ) : (
+          <form className="stack-form" onSubmit={onReport}>
+            <h3>Пожаловаться на страницу</h3>
+            <label>
+              Причина
+              <select
+                value={reportReason}
+                onChange={(e) => setReportReason(e.target.value)}
+                required
+              >
+                {REPORT_REASONS.map((item) => (
+                  <option key={item.value} value={item.value}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <textarea
+              value={reportMessage}
+              onChange={(e) => setReportMessage(e.target.value)}
+              placeholder="Комментарий (необязательно)"
+              rows={3}
+            />
+            <div className="hero-actions" style={{ justifyContent: "flex-start" }}>
+              <button type="submit" className="btn btn-primary btn-sm" disabled={reportSending}>
+                {reportSending ? "Отправляем…" : "Отправить жалобу"}
+              </button>
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={() => setReportOpen(false)}
+              >
+                Отмена
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
+    ) : !token && !card.deleted_at ? (
+      <div className="memorial-report" style={{ marginTop: "1.5rem" }}>
+        <button
+          type="button"
+          className="btn btn-ghost btn-sm"
+          onClick={() => openAuthModal(false)}
+        >
+          Войти, чтобы пожаловаться
+        </button>
+      </div>
+    ) : null;
+
   const actions = (
     <div className="memorial-view-actions">
       <button
@@ -383,6 +481,7 @@ export default function MemoryViewPage() {
             </aside>
           </div>
           {claimForm}
+          {reportBlock}
         </section>
       </div>
     );
@@ -609,6 +708,7 @@ export default function MemoryViewPage() {
         </section>
 
         {claimForm}
+        {reportBlock}
       </article>
     </div>
   );

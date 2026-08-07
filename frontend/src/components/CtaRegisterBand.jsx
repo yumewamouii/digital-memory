@@ -3,8 +3,8 @@ import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
 export default function CtaRegisterBand({
-  title = "Сохраните память о близких",
-  text = "Создайте страницу памяти или семейное древо — и делитесь ими с родными.",
+  title = "Соберите фотографии и воспоминания в одном месте",
+  text = "Создайте страницу памяти или генеалогическое древо — и делитесь ссылкой с родными.",
 }) {
   const { openAuthModal, auth, setAuth, register, setMessage } = useAuth();
   const [agree, setAgree] = useState(false);

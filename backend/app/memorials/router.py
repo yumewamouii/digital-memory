@@ -16,14 +16,21 @@ from ..domain.enums import PermissionCode
 from ..models import OwnershipClaim, User
 from ..rbac import service as rbac_service
 from ..rbac.deps import require_any_permission, require_permission
+from ..moderation.errors import ModerationError
+from ..moderation.http import moderation_http_exception
+from ..moderation.pipeline import validate_brief_photo
+from ..moderation.reports import create_memorial_report
 from ..schemas import (
     MemorialAssignOwnerRequest,
     MemorialAudioOut,
     MemorialCardCreate,
     MemorialCardOut,
+    MemorialCardPage,
     MemorialCardUpdate,
     MemorialDocumentOut,
     MemorialGalleryImageOut,
+    MemorialReportCreate,
+    MemorialReportOut,
     MemorialTransferRequest,
     MemorialVideoLinkCreate,
     MemorialVideoOut,
@@ -91,14 +98,23 @@ def list_memorial_cards(
     return [service.enrich_card(db, current_user, c) for c in cards]
 
 
-@router.get("/search", response_model=list[MemorialCardOut])
+@router.get("/search", response_model=MemorialCardPage)
 def search_memorials(
     q: str | None = Query(default=None),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=12, ge=1, le=100),
     db: Session = Depends(get_db),
     current_user: User | None = Depends(get_current_user_optional),
 ):
-    cards = service.search_public_cards(db, query=q)
-    return [service.enrich_card(db, current_user, c) for c in cards]
+    cards, total, safe_page, safe_size = service.search_public_cards(
+        db, query=q, page=page, page_size=page_size
+    )
+    return MemorialCardPage(
+        items=[service.enrich_card(db, current_user, c) for c in cards],
+        total=total,
+        page=safe_page,
+        page_size=safe_size,
+    )
 
 
 @router.get("/{card_id}", response_model=MemorialCardOut)
@@ -144,9 +160,31 @@ async def upload_memorial_photo(
     if not policies.can_edit_memorial(db, current_user, card):
         raise HTTPException(status_code=403, detail="Нет прав на редактирование")
     data = await file.read()
-    if len(data) > 5 * 1024 * 1024:
-        raise HTTPException(status_code=400, detail="Файл больше 5 МБ")
+    if (card.page_kind or "brief") == "brief":
+        try:
+            validate_brief_photo(data, filename=file.filename)
+        except ModerationError as exc:
+            raise moderation_http_exception(exc) from exc
+    else:
+        if len(data) > 5 * 1024 * 1024:
+            raise HTTPException(status_code=400, detail="Файл больше 5 МБ")
+        require_image(data)
     mime = require_image(data)
+    if (card.page_kind or "brief") == "brief" and mime not in (
+        "image/jpeg",
+        "image/png",
+        "image/webp",
+    ):
+        raise HTTPException(
+            status_code=422,
+            detail=[
+                {
+                    "field": "photo",
+                    "code": "photo_format",
+                    "message": "Разрешены только JPG, JPEG, PNG и WEBP.",
+                }
+            ],
+        )
     rel = f"memorial-photos/{card_id}_{uuid4().hex}{IMAGE_TYPES[mime]}"
     write_media_bytes(rel, data)
     card = service.update_card(
@@ -451,6 +489,31 @@ def request_ownership_claim(
         raise HTTPException(status_code=404, detail="Карточка не найдена")
     return service.create_ownership_claim(
         db, current_user, card, payload.message, request=request
+    )
+
+
+@router.post(
+    "/{card_id}/reports",
+    response_model=MemorialReportOut,
+    status_code=status.HTTP_201_CREATED,
+)
+def report_memorial_card(
+    card_id: int,
+    payload: MemorialReportCreate,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    card = service.get_card_or_404(db, card_id)
+    if not policies.can_view_memorial(db, current_user, card):
+        raise HTTPException(status_code=404, detail="Карточка не найдена")
+    return create_memorial_report(
+        db,
+        current_user,
+        card,
+        payload.reason,
+        payload.message,
+        request=request,
     )
 
 

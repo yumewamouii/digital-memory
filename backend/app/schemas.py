@@ -1,10 +1,19 @@
 from datetime import date, datetime
-from typing import Literal
+from typing import Generic, Literal, TypeVar
 from urllib.parse import urlparse
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
 
 from .services.partial_dates import normalize_partial_date
+
+T = TypeVar("T")
+
+
+class Page(BaseModel, Generic[T]):
+    items: list[T]
+    total: int
+    page: int
+    page_size: int
 
 
 def _coerce_partial_date(value: object) -> str | None:
@@ -287,6 +296,10 @@ class MemorialCardOut(BaseModel):
     relatives: list[MemorialRelativeOut] = []
 
 
+class MemorialCardPage(Page[MemorialCardOut]):
+    pass
+
+
 class MemorialTransferRequest(BaseModel):
     new_owner_id: int
 
@@ -314,6 +327,28 @@ class OwnershipClaimOut(BaseModel):
     status: str
     reviewed_by: int | None = None
     reviewed_at: datetime | None = None
+    created_at: datetime
+
+
+class MemorialReportCreate(BaseModel):
+    reason: Literal[
+        "false_info",
+        "profanity",
+        "offensive",
+        "nsfw_photo",
+        "other",
+    ]
+    message: str | None = Field(default=None, max_length=2000)
+
+
+class MemorialReportOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    memorial_id: int
+    reporter_id: int
+    reason: str
+    message: str | None = None
     created_at: datetime
 
 

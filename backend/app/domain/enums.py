@@ -69,6 +69,15 @@ class MemorialStatus(StrEnum):
     DRAFT = "draft"
     PUBLISHED = "published"
     ARCHIVED = "archived"
+    NEEDS_REVIEW = "needs_review"
+
+
+class ReportReason(StrEnum):
+    FALSE_INFO = "false_info"
+    PROFANITY = "profanity"
+    OFFENSIVE = "offensive"
+    NSFW_PHOTO = "nsfw_photo"
+    OTHER = "other"
 
 
 class ClaimStatus(StrEnum):

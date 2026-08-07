@@ -104,16 +104,11 @@ def list_trees(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    if rbac_service.user_has_permission(db, current_user, PermissionCode.TREE_READ_ANY):
-        trees = (
-            db.query(FamilyTree)
-            .options(joinedload(FamilyTree.persons))
-            .filter(FamilyTree.is_demo_template.is_(False))
-            .order_by(FamilyTree.updated_at.desc())
-            .all()
-        )
-        return [tree_summary_dict(t) for t in trees]
+    """Personal cabinet list: trees owned by the user or accepted collaborations.
 
+    ``TREE_READ_ANY`` still allows opening any tree by id; it must not dump
+    every tree into the personal cabinet.
+    """
     trees = (
         db.query(FamilyTree)
         .options(joinedload(FamilyTree.persons))
@@ -131,7 +126,7 @@ def list_trees(
         extra = (
             db.query(FamilyTree)
             .options(joinedload(FamilyTree.persons))
-            .filter(FamilyTree.id.in_(collab_ids))
+            .filter(FamilyTree.id.in_(collab_ids), FamilyTree.is_demo_template.is_(False))
             .all()
         )
         seen = {t.id for t in trees}

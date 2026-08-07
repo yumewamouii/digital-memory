@@ -39,6 +39,21 @@ def can_view_memorial(db: Session, user: User | None, card: MemorialCard) -> boo
             return True
         return False
 
+    if card.status == "needs_review":
+        if not user:
+            return False
+        if rbac_service.user_has_permission(db, user, PermissionCode.MEMORIAL_READ_ANY):
+            return True
+        if rbac_service.user_has_any_permission(
+            db,
+            user,
+            [PermissionCode.CONTENT_MODERATE, PermissionCode.MEMORIAL_CLAIM_REVIEW],
+        ):
+            return True
+        if card.owner_id == user.id:
+            return True
+        return False
+
     if card.visibility == "public":
         return True
     if card.visibility == "unlisted":

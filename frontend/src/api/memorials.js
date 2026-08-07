@@ -9,10 +9,14 @@ export async function listMemorials(headers, { includeDeleted = false } = {}) {
   return data;
 }
 
-export async function searchMemorials(query, headers = {}) {
+export async function searchMemorials(query, { page = 1, pageSize = 12 } = {}, headers = {}) {
   const { data } = await axios.get(`${API}/memorial-cards/search`, {
     headers,
-    params: query ? { q: query } : undefined,
+    params: {
+      ...(query ? { q: query } : {}),
+      page,
+      page_size: pageSize,
+    },
   });
   return data;
 }
@@ -151,6 +155,15 @@ export async function createOwnershipClaim(id, message, headers) {
   const { data } = await axios.post(
     `${API}/memorial-cards/${id}/claims`,
     { message },
+    { headers },
+  );
+  return data;
+}
+
+export async function reportMemorial(id, { reason, message }, headers) {
+  const { data } = await axios.post(
+    `${API}/memorial-cards/${id}/reports`,
+    { reason, message: message || null },
     { headers },
   );
   return data;

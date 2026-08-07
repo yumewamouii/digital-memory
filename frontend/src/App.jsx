@@ -101,6 +101,9 @@ export default function App() {
                     Permission.USER_MANAGE,
                     Permission.AUDIT_READ,
                     Permission.ORG_MANAGE_ANY,
+                    Permission.MEMORIAL_CLAIM_REVIEW,
+                    Permission.CONTENT_MODERATE,
+                    Permission.MEMORIAL_RESTORE,
                   ]}
                 >
                   <AdminPage />

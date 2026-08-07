@@ -214,6 +214,9 @@ class MemorialCard(Base):
     ownership_claims = relationship(
         "OwnershipClaim", back_populates="memorial", cascade="all, delete-orphan"
     )
+    reports = relationship(
+        "MemorialReport", back_populates="memorial", cascade="all, delete-orphan"
+    )
     gallery_images = relationship(
         "MemorialGalleryImage",
         back_populates="memorial",
@@ -312,6 +315,23 @@ class OwnershipClaim(Base):
     memorial = relationship("MemorialCard", back_populates="ownership_claims")
     requester = relationship("User", foreign_keys=[requester_id])
     reviewer = relationship("User", foreign_keys=[reviewed_by])
+
+
+class MemorialReport(Base):
+    __tablename__ = "memorial_reports"
+    __table_args__ = (
+        UniqueConstraint("memorial_id", "reporter_id", name="uq_memorial_report_user"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    memorial_id = Column(Integer, ForeignKey("memorial_cards.id"), nullable=False, index=True)
+    reporter_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    reason = Column(String(64), nullable=False)
+    message = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    memorial = relationship("MemorialCard", back_populates="reports")
+    reporter = relationship("User", foreign_keys=[reporter_id])
 
 
 class AuditLog(Base):
