@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-import io
 from uuid import uuid4
 
-import qrcode
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, Response, UploadFile, status
 from sqlalchemy.orm import Session
 
@@ -20,6 +18,7 @@ from ..moderation.errors import ModerationError
 from ..moderation.http import moderation_http_exception
 from ..moderation.pipeline import validate_brief_photo
 from ..moderation.reports import create_memorial_report
+from ..services.qr import make_qr_png
 from ..schemas import (
     MemorialAssignOwnerRequest,
     MemorialAudioOut,
@@ -569,7 +568,5 @@ def generate_qr_for_card(
         raise HTTPException(status_code=404, detail="Card not found")
 
     public_url = f"{settings.public_frontend_url.rstrip('/')}/memory/{card.id}"
-    image = qrcode.make(public_url)
-    buf = io.BytesIO()
-    image.save(buf, format="PNG")
-    return Response(content=buf.getvalue(), media_type="image/png")
+    png_bytes = make_qr_png(public_url)
+    return Response(content=png_bytes, media_type="image/png")
