@@ -72,6 +72,7 @@ const pagePlans = [
     id: "brief",
     title: "Базовая страница памяти",
     badge: "Бесплатно",
+    price: "Бесплатно",
     subtitle: "Содержит всю основную информацию о человеке и подходит для сохранения памяти.",
     exampleLabel: "Посмотреть пример",
     exampleTo: "/memory/example/brief",
@@ -88,6 +89,7 @@ const pagePlans = [
     id: "extended",
     title: "Полная страница памяти",
     badge: "Полная история",
+    price: "5000 ₽ разово",
     featured: true,
     subtitle: "Для тех, кто хочет сохранить полную историю жизни человека.",
     exampleLabel: "Посмотреть пример",
@@ -829,6 +831,7 @@ export default function CreateCardPage() {
                   >
                     <span className="plan-badge">{item.badge}</span>
                     <h3>{item.title}</h3>
+                    <p className="pricing-price">{item.price}</p>
                     <p>{item.subtitle}</p>
                     <ul className="plan-features">
                       {item.features.map((feature) => (

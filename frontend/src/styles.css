@@ -2094,6 +2094,36 @@ a {
   padding: 0.35rem 0.75rem;
 }
 
+.pricing-tabs {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+  border-bottom: 1px solid var(--color-border-soft);
+  margin-bottom: 2rem;
+}
+
+.pricing-tab {
+  border: none;
+  background: none;
+  padding: 0.85rem 1.5rem;
+  font-family: var(--font-heading);
+  font-size: var(--text-base);
+  font-weight: 600;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.pricing-tab:hover {
+  color: var(--color-accent-deep);
+}
+
+.pricing-tab.is-active {
+  color: var(--color-accent-deep);
+  border-bottom-color: var(--color-accent);
+}
+
 .plan-choice {
   max-width: 920px;
   margin: 0 auto;
@@ -2191,6 +2221,59 @@ a {
 .plan-card .btn {
   margin-top: 0.35rem;
   width: 100%;
+}
+
+.plan-card--single {
+  max-width: 360px;
+  margin: 0 auto;
+}
+
+.plan-card-price-note {
+  margin: -0.5rem 0 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.pricing-calculator-control {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.pricing-stepper {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.pricing-stepper button {
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-heading);
+  font-size: var(--text-md);
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pricing-stepper button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.pricing-stepper span {
+  min-width: 1.5rem;
+  text-align: center;
+  font-weight: 600;
+  color: var(--color-heading);
 }
 
 /* Memorial example pages */

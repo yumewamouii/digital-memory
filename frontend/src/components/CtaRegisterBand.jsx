@@ -6,7 +6,7 @@ export default function CtaRegisterBand({
   title = "Соберите фотографии и воспоминания в одном месте",
   text = "Создайте страницу памяти или генеалогическое древо — и делитесь ссылкой с родными.",
 }) {
-  const { openAuthModal, auth, setAuth, register, setMessage } = useAuth();
+  const { token, openAuthModal, auth, setAuth, register, setMessage } = useAuth();
   const [agree, setAgree] = useState(false);
 
   const handleRegister = async (event) => {
@@ -18,6 +18,10 @@ export default function CtaRegisterBand({
     openAuthModal(true);
     await register();
   };
+
+  if (token) {
+    return null;
+  }
 
   return (
     <section className="section section-dark" id="home-cta">

@@ -2,7 +2,6 @@ import { Link } from "react-router-dom";
 import ContactForm from "../components/ContactForm";
 import CtaRegisterBand from "../components/CtaRegisterBand";
 import FaqAccordion from "../components/FaqAccordion";
-import { useAuth } from "../context/AuthContext";
 import pillarMemory from "../assets/home-pillar-memory.png";
 import pillarTree from "../assets/home-pillar-tree.png";
 import pillarPlaces from "../assets/home-pillar-places.png";
@@ -150,8 +149,6 @@ const familyQuote = {
 };
 
 export default function HomePage() {
-  const { openAuthModal } = useAuth();
-
   return (
     <>
       <section className="home-landing-hero" id="home-top">
@@ -462,9 +459,9 @@ export default function HomePage() {
               Имя, одно фото и несколько строк — уже достаточно, чтобы страница жила.
               Остальное семья дополнит позже.
             </p>
-            <button type="button" className="btn btn-primary" onClick={() => openAuthModal(true)}>
+            <Link to="/memory/create" className="btn btn-primary">
               Начать бесплатно
-            </button>
+            </Link>
           </div>
         </div>
       </section>

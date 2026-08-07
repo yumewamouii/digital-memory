@@ -55,7 +55,7 @@ const treeFaq = [
 ];
 
 export default function FamilyTreePage() {
-  const { openAuthModal } = useAuth();
+  const { token, openAuthModal } = useAuth();
 
   return (
     <>
@@ -70,9 +70,11 @@ export default function FamilyTreePage() {
           <Link to="/family-tree/demo" className="btn btn-secondary">
             Смотреть пример
           </Link>
-          <button type="button" className="btn btn-outline" onClick={() => openAuthModal(true)}>
-            Регистрация
-          </button>
+          {!token && (
+            <button type="button" className="btn btn-outline" onClick={() => openAuthModal(true)}>
+              Регистрация
+            </button>
+          )}
         </div>
       </PageHero>
 
@@ -101,7 +103,7 @@ export default function FamilyTreePage() {
                   Создать своё древо
                 </Link>
                 <Link to="/memory/museum" className="btn btn-outline">
-                  Перейти в архив
+                  Музей памяти
                 </Link>
               </div>
             </div>
